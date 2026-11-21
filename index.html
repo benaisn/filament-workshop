@@ -34,7 +34,7 @@ button, input, select { font: inherit; color: inherit; }
 button { cursor: pointer; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.app { height: 100%; display: grid; grid-template-columns: 1fr var(--panel-w); grid-template-rows: auto 1fr; }
+.app { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) var(--panel-w); grid-template-rows: auto 1fr; }
 header.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   border-bottom: 1px solid var(--line); background: var(--panel); }
@@ -46,6 +46,9 @@ header.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px;
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn svg { width: 16px; height: 16px; }
+.menu { display: contents; }
+.btn.more { display: none; }
+header.bar > .btn, .menu > * { flex: none; }
 .arbox { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; }
 .arbox model-viewer { flex: 1; width: 100%; height: auto; align-self: stretch; min-height: 0; background: var(--bg); --poster-color: transparent; }
 .arbar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
@@ -138,9 +141,36 @@ aside.panel { border-left: 1px solid var(--line); background: var(--panel); min-
 .repos button:hover { border-color: var(--accent); }
 body.friend .owner-only, body.friend .stock, body.friend .fam h3 button, body.friend .foot, body.friend .io, body.friend #partsBox, body.friend .check, body.reply .owner-only { display: none !important; }
 body.reply #friendForm { display: none !important; }
+@media (max-width: 1180px) {
+  :root { --panel-w: 340px; }
+  header.bar { flex-wrap: nowrap; gap: 8px; }
+  .long { display: none; }
+  .brand .file { max-width: 22vw; }
+  .chipbar { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .chipbar::-webkit-scrollbar { display: none; }
+  .chipbar > * { flex: none; }
+  .hud { flex-wrap: nowrap; }
+  .dims { flex: none; }
+}
+@media (max-width: 1000px) {
+  header.bar { position: relative; }
+  .btn.more { display: inline-flex; padding: 6px 9px; }
+  .menu { display: none; position: absolute; top: calc(100% + 6px); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 40;
+    flex-direction: column; align-items: stretch; gap: 6px; padding: 8px; min-width: 210px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgb(0 0 0 / .22); }
+  header.bar.open .menu { display: flex; }
+  .menu .btn { justify-content: flex-start; padding: 10px 12px; }
+  .menu .langsel { padding: 9px 8px; }
+  .dims { display: none; }
+}
 @media (max-width: 820px) {
-  body { overflow: auto; }
-  .app { height: auto; grid-template-columns: 1fr; grid-template-rows: auto 56vh auto; }
+  html, body { overflow-x: hidden; }
+  body { overflow-y: auto; }
+  .app { height: auto; min-height: 100%; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(300px, 52svh) auto; }
+  header.bar { position: sticky; top: 0; z-index: 30; padding-top: max(10px, env(safe-area-inset-top, 0px)); }
+  aside.panel { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 72px); }
+  .brand { flex: 1 1 auto; }
+  .brand h1 { overflow: hidden; text-overflow: ellipsis; }
   aside.panel { border-left: 0; border-top: 1px solid var(--line); }
   .slots { max-height: none; }
   .list { overflow: visible; }
@@ -155,6 +185,11 @@ body.reply #friendForm { display: none !important; }
   .chipbar > * { flex: none; }
   .dims { display: none; }
 }
+@media (max-width: 430px) {
+  #openTxt { display: none; }
+  header.bar { gap: 6px; }
+  .btn { padding: 6px 9px; }
+}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
@@ -168,15 +203,18 @@ body.reply #friendForm { display: none !important; }
 <div class="app">
   <header class="bar">
     <div class="brand"><h1>Atelier Filament</h1><span class="file" id="fileName">Exemple : vase torsadé</span></div>
+    <div class="menu" id="menu">
     <button class="btn" id="reposBtn" type="button" hidden>Mes modèles</button>
     <button class="btn owner-only" id="sampleBtn" type="button">Exemple</button>
     <button class="btn owner-only" id="shareBtn" type="button">Partager</button>
+    <select id="langSel" class="langsel" aria-label="Langue"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option></select>
+    </div>
     <button class="btn" id="arBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg><span id="arTxt">AR</span></button>
     <button class="btn primary owner-only" id="openBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m0 0-4 4m4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
       <span><span id="openTxt">Ouvrir</span><span class="long"> STL / 3MF</span></span>
     </button>
-    <select id="langSel" class="langsel" aria-label="Langue"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option></select>
+    <button class="btn more" id="moreBtn" type="button" aria-expanded="false" aria-controls="menu" aria-label="Menu"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></button>
     <input type="file" id="fileInput" accept=".stl,.3mf" multiple hidden>
   </header>
 
@@ -1311,6 +1349,10 @@ $('arBtn').onclick = async () => {
   } catch (e) { console.error(e); $('arHint').textContent = tx('arFail'); }
 };
 $('arClose').onclick = () => { $('arBox').hidden = true; $('arSlot').innerHTML = ''; };
+
+// Menu compact (petits écrans)
+$('moreBtn').onclick = (e) => { e.stopPropagation(); const o = $('moreBtn').closest('header').classList.toggle('open'); $('moreBtn').setAttribute('aria-expanded', o); };
+document.addEventListener('click', (e) => { const h = document.querySelector('header.bar'); if (h.classList.contains('open') && (!e.target.closest('#menu') || e.target.closest('button'))) { h.classList.remove('open'); $('moreBtn').setAttribute('aria-expanded', 'false'); } });
 
 async function boot() {
   const h = location.hash.match(/^#([ar])=(.+)$/);
