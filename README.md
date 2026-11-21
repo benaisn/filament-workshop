@@ -12,6 +12,8 @@ Visionneuse 3D de fichiers STL et 3MF, avec choix des couleurs dans le catalogue
 - **Partage avec un ami** : *Partager* crée un lien. Ton ami y choisit ses couleurs parmi ton stock et te renvoie un lien de réponse.
 - Interface en français, en anglais et en allemand.
 
-## Partager un gros modèle
+## Partager un modèle
 
-Les petits fichiers tiennent directement dans le lien. Les plus gros doivent être déposés dans le dossier [`modeles/`](modeles/). Ouvre-les ensuite avec **Mes modèles**, puis clique sur **Partager**.
+Lors du premier partage, l'appli te demande de connecter GitHub. Pour cela, crée un jeton *fine-grained* limité à ce dépôt, avec la permission « Contents : Read and write ». Le jeton reste enregistré dans ton navigateur.
+
+Ensuite, **Partager** envoie automatiquement le fichier dans [`modeles/`](modeles/) et crée le lien. Tu peux aussi déposer des fichiers à la main dans ce dossier et les ouvrir avec **Mes modèles**.

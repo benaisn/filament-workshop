@@ -125,6 +125,7 @@ aside.panel { border-left: 1px solid var(--line); background: var(--panel); min-
 .lead { margin: 0 0 10px; line-height: 1.45; max-width: 60ch; }
 #friendBox textarea, #shareBox textarea { width: 100%; min-height: 64px; font-family: var(--mono); font-size: 11px; background: var(--raise); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 6px; margin: 6px 0; word-break: break-all; }
 .langsel { background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px; font-weight: 500; }
+.ghbox { border: 1px dashed var(--line); border-radius: 9px; padding: 10px; margin-top: 8px; }
 .repos { display: grid; gap: 4px; max-height: 30vh; overflow-y: auto; }
 .repos button { text-align: left; border: 1px solid var(--line); background: var(--raise); border-radius: 7px; padding: 6px 9px; font-family: var(--mono); font-size: 12px; }
 .repos button:hover { border-color: var(--accent); }
@@ -213,7 +214,12 @@ body.reply #friendForm { display: none !important; }
       <h2 id="shareTitle">Partager avec un ami</h2>
       <p class="hint" id="shareInfo" style="margin-top:0"></p>
       <input class="search" id="shareNote" type="text" maxlength="120" placeholder="Un mot pour ton ami (facultatif)" aria-label="Message pour ton ami">
-      <div class="row" style="margin-top:8px"><button class="btn primary" id="shareMake" type="button">Créer le lien</button><button class="btn" id="shareClose" type="button">Fermer</button></div>
+      <div id="ghBox" hidden class="ghbox">
+        <p class="hint" id="ghInfo" style="margin-top:0"></p>
+        <a class="btn" id="ghLink" target="_blank" rel="noopener" href="https://github.com/settings/personal-access-tokens/new?name=Atelier%20Filament&description=Envoi%20des%20mod%C3%A8les&expires_in=none&contents=write">Créer le jeton sur GitHub</a>
+        <div class="row" style="margin-top:8px"><input class="search" id="ghToken" type="password" autocomplete="off" spellcheck="false" style="flex:1;min-width:0"><button class="btn" id="ghSave" type="button">Enregistrer</button></div>
+      </div>
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="shareMake" type="button">Créer le lien</button><button class="btn" id="shareClose" type="button">Fermer</button><button class="tog" id="ghForget" type="button" hidden>Déconnecter GitHub</button></div>
       <div id="shareOut" hidden style="margin-top:8px">
         <textarea id="shareLink" readonly spellcheck="false"></textarea>
         <div class="row"><button class="btn" id="shareCopy" type="button">Copier le lien</button><span class="hint" id="shareSize" style="margin:0"></span></div>
@@ -311,6 +317,11 @@ const I18N = {
     friendTitle: 'À toi de choisir les couleurs',
     friendLead: (n) => `Pour chaque couleur de la pièce, clique dessus puis choisis un filament dans la liste (${n} disponibles). Tourne la pièce avec la souris ou le doigt pour la voir sous tous les angles.`,
     replyTitle: (w) => `Choix de ${w || 'ton ami'}`, replyLead: 'Voici les couleurs choisies. Les filaments que tu n’as plus en stock sont signalés.',
+    ghNeed: 'Pour envoyer automatiquement tes fichiers dans le dossier « modeles » du dépôt, connecte GitHub une seule fois : crée un jeton (choisis « Only select repositories » puis filament-workshop, et autorise « Contents : Read and write »), puis colle-le ici. Il reste enregistré dans ce navigateur.',
+    ghCreate: 'Créer le jeton sur GitHub', ghTokenPh: 'Colle ton jeton GitHub (github_pat_…)', ghSave: 'Enregistrer', ghForget: 'Déconnecter GitHub',
+    ghSaved: 'GitHub connecté : tes fichiers seront envoyés automatiquement', ghBad: 'Ce jeton ne permet pas d’écrire dans le dépôt. Vérifie le dépôt choisi et la permission « Contents ».',
+    uploading: (f) => `Envoi de « ${f} » dans modeles/…`, uploaded: 'Fichier envoyé dans modeles/ : le lien est prêt', uploadFail: (m) => `L’envoi a échoué (${m}). Réessaie, ou dépose le fichier à la main dans modeles/.`,
+    shareInfoUp: (n) => `Le fichier sera envoyé dans le dossier modeles/ de ton dépôt. Ton ami verra ce modèle avec tes couleurs actuelles et pourra choisir parmi tes ${n} filaments en stock.`,
     quote: (s) => `« ${s} » `, sampleParts: ['Vase', 'Socle', 'Bouton'],
     fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (soie)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'PLA recyclé', 'PLA édition limitée': 'PLA édition limitée', 'PETG': 'PETG', 'PETG technique': 'PETG technique', 'PETG recyclé': 'PETG recyclé' },
     fin: { 'mat': 'mat', 'soie': 'soie', 'pailleté': 'pailleté', 'irisé': 'irisé', 'transparent': 'transparent', 'translucide': 'translucide', 'marbré': 'marbré', 'phosphorescent': 'phosphorescent', 'carbone': 'carbone', 'moussé': 'moussé' },
@@ -348,6 +359,11 @@ const I18N = {
     friendTitle: 'Your turn to pick the colours',
     friendLead: (n) => `For each colour of the part, click it, then pick a filament from the list (${n} available). Turn the part with your mouse or finger to see it from every angle.`,
     replyTitle: (w) => `${w || 'Your friend'}’s choice`, replyLead: 'Here are the chosen colours. Filaments you no longer have in stock are flagged.',
+    ghNeed: 'To send your files to the “modeles” folder of the repository automatically, connect GitHub once: create a token (pick “Only select repositories”, then filament-workshop, and allow “Contents: Read and write”), then paste it here. It stays saved in this browser.',
+    ghCreate: 'Create the token on GitHub', ghTokenPh: 'Paste your GitHub token (github_pat_…)', ghSave: 'Save', ghForget: 'Disconnect GitHub',
+    ghSaved: 'GitHub connected: your files will be sent automatically', ghBad: 'This token can’t write to the repository. Check the selected repository and the “Contents” permission.',
+    uploading: (f) => `Sending “${f}” to modeles/…`, uploaded: 'File sent to modeles/: the link is ready', uploadFail: (m) => `Upload failed (${m}). Try again, or put the file in modeles/ by hand.`,
+    shareInfoUp: (n) => `The file will be sent to the modeles/ folder of your repository. Your friend will see this model with your current colours and can choose from your ${n} filaments in stock.`,
     quote: (s) => `“${s}” `, sampleParts: ['Vase', 'Base', 'Knob'],
     fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (silk)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'Recycled PLA', 'PLA édition limitée': 'PLA limited edition', 'PETG': 'PETG', 'PETG technique': 'Technical PETG', 'PETG recyclé': 'Recycled PETG' },
     fin: { 'mat': 'matte', 'soie': 'silk', 'pailleté': 'glitter', 'irisé': 'iridescent', 'transparent': 'transparent', 'translucide': 'translucent', 'marbré': 'marble', 'phosphorescent': 'glow-in-the-dark', 'carbone': 'carbon fibre', 'moussé': 'foamed' },
@@ -385,6 +401,11 @@ const I18N = {
     friendTitle: 'Du darfst die Farben wählen',
     friendLead: (n) => `Klicke auf jede Farbe des Teils und wähle dann ein Filament aus der Liste (${n} verfügbar). Drehe das Teil mit der Maus oder dem Finger, um es von allen Seiten zu sehen.`,
     replyTitle: (w) => `Auswahl von ${w || 'deinem Freund'}`, replyLead: 'Hier sind die gewählten Farben. Filamente, die du nicht mehr vorrätig hast, sind markiert.',
+    ghNeed: 'Um deine Dateien automatisch in den Ordner „modeles“ des Repositorys zu senden, verbinde GitHub einmalig: Erstelle ein Token (wähle „Only select repositories“, dann filament-workshop, und erlaube „Contents: Read and write“) und füge es hier ein. Es bleibt in diesem Browser gespeichert.',
+    ghCreate: 'Token auf GitHub erstellen', ghTokenPh: 'GitHub-Token einfügen (github_pat_…)', ghSave: 'Speichern', ghForget: 'GitHub trennen',
+    ghSaved: 'GitHub verbunden: Deine Dateien werden automatisch gesendet', ghBad: 'Mit diesem Token kann nicht in das Repository geschrieben werden. Prüfe das gewählte Repository und die Berechtigung „Contents“.',
+    uploading: (f) => `„${f}“ wird nach modeles/ gesendet…`, uploaded: 'Datei nach modeles/ gesendet: Der Link ist bereit', uploadFail: (m) => `Hochladen fehlgeschlagen (${m}). Versuche es erneut oder lege die Datei von Hand in modeles/ ab.`,
+    shareInfoUp: (n) => `Die Datei wird in den Ordner modeles/ deines Repositorys gesendet. Deine Freunde sehen dieses Modell mit deinen aktuellen Farben und können aus deinen ${n} vorrätigen Filamenten wählen.`,
     quote: (s) => `„${s}“ `, sampleParts: ['Vase', 'Sockel', 'Knopf'],
     fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (Seide)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'Recyceltes PLA', 'PLA édition limitée': 'PLA Limited Edition', 'PETG': 'PETG', 'PETG technique': 'Technisches PETG', 'PETG recyclé': 'Recyceltes PETG' },
     fin: { 'mat': 'matt', 'soie': 'Seide', 'pailleté': 'Glitzer', 'irisé': 'schillernd', 'transparent': 'transparent', 'translucide': 'transluzent', 'marbré': 'Marmor', 'phosphorescent': 'nachleuchtend', 'carbone': 'Carbonfaser', 'moussé': 'geschäumt' },
@@ -1018,6 +1039,7 @@ requestAnimationFrame(tick);
 /* ---------- Partage : lien ami et lien de réponse ---------- */
 const b64u = {
   enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+  std(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); },
   dec(str) { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; },
 };
 const packObj = (o) => b64u.enc(deflateSync(strToU8(JSON.stringify(o)), { level: 9 }));
@@ -1064,15 +1086,52 @@ async function copyText(el, okMsg) {
   try { await navigator.clipboard.writeText(el.value); toast(okMsg); } catch { toast(tx('selectCopy')); }
 }
 
+// Connexion GitHub (jeton à portée limitée, gardé dans ce navigateur)
+const GH_KEY = 'atelier-filament:gh-token';
+const ghToken = () => { try { return localStorage.getItem(GH_KEY) || ''; } catch { return ''; } };
+async function ghApi(path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}${path}`, { ...opts, headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${ghToken()}`, ...(opts.headers || {}) } });
+  if (!r.ok && r.status !== 404) { const j = await r.json().catch(() => ({})); throw new Error(`${r.status} ${j.message || ''}`.trim()); }
+  return r.status === 404 ? null : r.json();
+}
+const safeName = (n) => n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w.-]+/g, '_');
+async function uploadSource() {
+  const urls = [];
+  for (const f of source.files) {
+    const name = safeName(f.name); const path = `modeles/${name}`;
+    $('shareInfo').textContent = tx('uploading', name);
+    const cur = await ghApi(`/contents/${path}`);
+    const res = await ghApi(`/contents/${path}`, { method: 'PUT', body: JSON.stringify({ message: `Ajout du modèle ${name}`, content: b64u.std(new Uint8Array(f.buf)), ...(cur && cur.sha ? { sha: cur.sha } : {}) }) });
+    urls.push(`https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${res.commit.sha}/${path}`);
+  }
+  source = { type: 'repo', path: urls.length === 1 ? urls[0] : urls };
+}
+$('ghSave').onclick = async () => {
+  const v = $('ghToken').value.trim(); if (!v) return;
+  try { localStorage.setItem(GH_KEY, v); } catch {}
+  try { const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}`, { headers: { Authorization: `Bearer ${v}` } }); const j = await r.json(); if (!r.ok || !(j.permissions && j.permissions.push)) throw 0; }
+  catch { try { localStorage.removeItem(GH_KEY); } catch {} toast(tx('ghBad')); return; }
+  $('ghToken').value = ''; toast(tx('ghSaved')); $('shareBtn').click();
+};
+$('ghForget').onclick = () => { try { localStorage.removeItem(GH_KEY); } catch {} $('shareBtn').click(); };
+
 // Côté imprimeur : créer le lien ami
 $('shareBtn').onclick = () => {
   $('shareBox').hidden = false; $('shareOut').hidden = true;
-  $('shareInfo').textContent = !HOSTED ? tx('notHosted') : tx('shareInfo', CAT.filter(f => inStock(f.id)).length);
+  const nS = CAT.filter(f => inStock(f.id)).length; const local = source.type === 'local' || source.type === 'inline';
+  $('shareInfo').textContent = !HOSTED ? tx('notHosted') : (local && GH && ghToken() ? tx('shareInfoUp', nS) : tx('shareInfo', nS));
+  $('ghBox').hidden = !(HOSTED && GH && local && !ghToken()); $('ghInfo').textContent = tx('ghNeed');
+  $('ghForget').hidden = !(GH && ghToken());
   $('shareMake').disabled = !HOSTED;
   $('shareBox').scrollIntoView({ block: 'nearest' });
 };
 $('shareClose').onclick = () => { $('shareBox').hidden = true; };
 $('shareMake').onclick = async () => {
+  if (GH && ghToken() && (source.type === 'local' || source.type === 'inline')) {
+    $('shareMake').disabled = true;
+    try { await uploadSource(); } catch (e) { $('shareMake').disabled = false; $('shareInfo').textContent = tx('uploadFail', e.message || 'erreur'); return; }
+    $('shareMake').disabled = false; toast(tx('uploaded'));
+  }
   const r = await makeShareLink('a', { s: CAT.filter(f => inStock(f.id)).map(f => f.id), t: $('shareNote').value.trim() });
   if (r.error) {
     $('shareOut').hidden = true;
@@ -1097,16 +1156,19 @@ $('sendBtn').onclick = async () => {
 $('replyCopy').onclick = () => copyText($('replyLink'), tx('linkCopied'));
 $('takeBtn').onclick = () => {
   document.body.classList.remove('reply'); $('friendBox').hidden = true; sharedStock = null;
-  history.replaceState(null, '', source.type === 'repo' ? baseURL() + '?m=' + encodeURIComponent(source.path) : baseURL());
+  history.replaceState(null, '', source.type === 'repo' && typeof source.path === 'string' ? baseURL() + '?m=' + encodeURIComponent(source.path) : baseURL());
   renderSlots(); renderList(); banner = null; toast(tx('tookOver'));
 };
 
 // Mes modèles : fichiers du dossier modeles/ du dépôt GitHub
 async function loadRepoModel(path, opts) {
-  const res = await fetch(path, { cache: 'no-cache' });
-  if (!res.ok) throw uerr(tx('notFound', path));
-  const buf = await res.arrayBuffer();
-  const ok = await loadBuffers([{ name: path.split('/').pop(), buf }], opts);
+  const paths = Array.isArray(path) ? path : [path]; const files = [];
+  for (const pth of paths) {
+    const res = await fetch(pth, { cache: 'no-cache' });
+    if (!res.ok) throw uerr(tx('notFound', decodeURIComponent(pth.split('/').pop())));
+    files.push({ name: decodeURIComponent(pth.split('/').pop()), buf: await res.arrayBuffer() });
+  }
+  const ok = await loadBuffers(files, opts);
   if (ok) source = { type: 'repo', path };
   return ok;
 }
@@ -1165,13 +1227,13 @@ const STATIC = [
   ['#bgSel option[value=auto]', 'bgAuto'], ['#bgSel option[value=light]', 'bgLight'], ['#bgSel option[value=dark]', 'bgDark'], ['#bgSel option[value=bed]', 'bgBed'],
   ['#sendBtn', 'sendChoice'], ['#takeBtn', 'takeOver'], ['#replyHint', 'replyHint'], ['#replyCopy', 'copyLink'], ['#shareCopy', 'copyLink'],
   ['#shareTitle', 'shareTitle'], ['#shareMake', 'makeLink'], ['#shareClose', 'close'], ['#reposClose', 'close'], ['#ioClose', 'close'],
-  ['#reposTitle', 'myModels'], ['#reposSub', 'reposSub'], ['#colorsTitle', 'modelColors'], ['#slotHint', 'slotHint'],
+  ['#reposTitle', 'myModels'], ['#ghLink', 'ghCreate'], ['#ghSave', 'ghSave'], ['#ghForget', 'ghForget'], ['#reposSub', 'reposSub'], ['#colorsTitle', 'modelColors'], ['#slotHint', 'slotHint'],
   ['.seg button[data-t=all]', 'all'], ['#onlyStockTxt', 'onlyStock'], ['#ioLabel', 'stockLabel'], ['#ioImport', 'importList'], ['#ioBtn', 'saveImport'], ['.foot .src', 'source'],
 ];
 const STATIC_ATTR = [
   ['#cv', 'aria-label', 'view3d'], ['.chipbar', 'aria-label', 'renderOpts'], ['#layerH', 'aria-label', 'layerH'], ['#bgSel', 'aria-label', 'decor'],
   ['#who', 'placeholder', 'yourName'], ['#who', 'aria-label', 'yourName'], ['#shareNote', 'placeholder', 'shareNote'], ['#shareNote', 'aria-label', 'shareNote'],
-  ['#q', 'placeholder', 'search'], ['#q', 'aria-label', 'search'], ['.seg', 'aria-label', 'material'], ['#langSel', 'aria-label', 'langLabel'],
+  ['#q', 'placeholder', 'search'], ['#ghToken', 'placeholder', 'ghTokenPh'], ['#ghToken', 'aria-label', 'ghTokenPh'], ['#q', 'aria-label', 'search'], ['.seg', 'aria-label', 'material'], ['#langSel', 'aria-label', 'langLabel'],
 ];
 function applyLang() {
   document.documentElement.lang = lang; $('langSel').value = lang;
