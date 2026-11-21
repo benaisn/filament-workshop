@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Visionneuse 3D STL / 3MF avec les couleurs Prusament PLA et PETG.">
+<style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+</head>
+<body>
+<title>Atelier Filament</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Sans:wght@500;600;700&display=swap">
+<style>
+/* Layout: plein écran — la vue 3D occupe tout, un panneau d'atelier à droite (en dessous sur téléphone). */
+:root {
+  --bg: #e9ecef; --panel: #f6f7f8; --raise: #ffffff; --line: #d3d8de; --fg: #16191d; --muted: #5d6670;
+  --accent: #127f8c; --accent-ink: #ffffff; --warn: #a15c00; --ok: #2f7d4a;
+  --display: "Instrument Sans", "IBM Plex Sans", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --panel-w: 400px; --r: 10px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121418; --panel: #181b20; --raise: #1f232a; --line: #2b3038; --fg: #e7eaee; --muted: #949ca7;
+  --accent: #4fc3cf; --accent-ink: #0b1a1c; --warn: #f0b35a; --ok: #74c98f; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121418; --panel: #181b20; --raise: #1f232a; --line: #2b3038; --fg: #e7eaee; --muted: #949ca7;
+  --accent: #4fc3cf; --accent-ink: #0b1a1c; --warn: #f0b35a; --ok: #74c98f; color-scheme: dark }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 14px; overflow: hidden; }
+* { box-sizing: border-box; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { height: 100%; display: grid; grid-template-columns: 1fr var(--panel-w); grid-template-rows: auto 1fr; }
+header.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  border-bottom: 1px solid var(--line); background: var(--panel); }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; min-width: 0; }
+.brand h1 { font-family: var(--display); font-weight: 700; font-size: 18px; letter-spacing: -0.01em; margin: 0; white-space: nowrap; }
+.brand .file { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40vw; }
+.btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--raise); border-radius: 8px; padding: 7px 12px; font-weight: 500; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn svg { width: 16px; height: 16px; }
+
+.stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.drop { position: absolute; inset: 12px; border: 2px dashed var(--accent); border-radius: 14px; display: grid; place-items: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent); font-family: var(--display); font-size: 20px; pointer-events: none; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 55%, transparent); font-weight: 500; }
+.hud { position: absolute; left: 12px; bottom: 12px; right: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.chipbar { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; border-radius: 10px; background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); backdrop-filter: blur(8px); }
+.tog { border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 5px 9px; font-size: 13px; color: var(--muted); }
+.tog[aria-pressed="true"] { background: var(--raise); color: var(--fg); border-color: var(--line); }
+.chipbar select { background: var(--raise); border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; font-size: 13px; }
+.dims { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--panel) 80%, transparent); font-variant-numeric: tabular-nums; }
+.toast { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; max-width: calc(100% - 24px); box-shadow: 0 6px 24px rgb(0 0 0 / .25); }
+
+aside.panel { border-left: 1px solid var(--line); background: var(--panel); min-height: 0; display: flex; flex-direction: column; }
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.sec h2 { font-family: var(--display); font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+.sec h2 .count { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-weight: 400; }
+.slots { display: grid; gap: 6px; max-height: 34vh; overflow-y: auto; }
+.slot { display: grid; grid-template-columns: 42px 1fr auto; gap: 10px; align-items: center; padding: 7px 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--raise); text-align: left; width: 100%; }
+.slot[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.slot .num { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.slot .nm { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot .meta { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.slot > div { min-width: 0; }
+.badge { font-size: 11px; padding: 2px 6px; border-radius: 99px; border: 1px solid var(--warn); color: var(--warn); white-space: nowrap; }
+.parts { margin-top: 10px; }
+.parts summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.partrow { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
+.partrow span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.partrow select { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px; }
+.hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+.cat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cat .tools { padding: 12px 16px 8px; display: grid; gap: 8px; }
+.search { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--raise); }
+.row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { border: 0; background: var(--raise); padding: 5px 10px; font-size: 13px; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.check { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-left: auto; }
+.list { overflow-y: auto; padding: 0 16px 16px; min-height: 0; }
+.fam { margin-top: 14px; }
+.fam h3 { font-size: 12px; font-weight: 600; color: var(--muted); margin: 0 0 6px; display: flex; justify-content: space-between; align-items: center; }
+.fam h3 button { border: 0; background: none; color: var(--accent); font-size: 12px; padding: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
+.fil { position: relative; border: 1px solid var(--line); border-radius: 9px; background: var(--raise); padding: 0; overflow: hidden; text-align: left; display: flex; flex-direction: column; }
+.fil:hover { border-color: var(--muted); }
+.fil.off { opacity: .55; }
+.fil.cur { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.sw { height: 44px; position: relative; }
+.sw::after { content: ""; position: absolute; inset: 0; }
+.sw.f-glitter::after { background-image: radial-gradient(circle at 20% 30%, rgb(255 255 255 / .9) 0 1px, transparent 1.6px), radial-gradient(circle at 70% 60%, rgb(255 255 255 / .8) 0 1px, transparent 1.6px), radial-gradient(circle at 45% 80%, rgb(255 255 255 / .7) 0 .8px, transparent 1.4px); background-size: 13px 11px, 17px 15px, 9px 13px; }
+.sw.f-silk::after { background: linear-gradient(105deg, transparent 20%, rgb(255 255 255 / .45) 45%, transparent 60%, rgb(0 0 0 / .18) 85%); }
+.sw.f-trans { background-image: linear-gradient(45deg, #bbb 25%, transparent 25%, transparent 75%, #bbb 75%), linear-gradient(45deg, #bbb 25%, #eee 25%, #eee 75%, #bbb 75%); background-size: 12px 12px; background-position: 0 0, 6px 6px; }
+.sw.f-trans::after { background: var(--c); opacity: .72; }
+.sw.f-irid::after { background: linear-gradient(120deg, rgb(120 255 200 / .25), transparent 40%, rgb(255 120 220 / .25) 80%); }
+.sw.f-marble::after { background-image: radial-gradient(circle, #222 0 .9px, transparent 1.3px); background-size: 7px 9px; opacity: .8; }
+.sw.f-matte::after { background: rgb(255 255 255 / .04); }
+.fil .tx { padding: 5px 7px 6px; display: grid; gap: 1px; min-width: 0; }
+.fil .n { font-size: 12px; font-weight: 600; line-height: 1.25; }
+.fil .s { font-family: var(--mono); font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stock { position: absolute; top: 5px; right: 5px; width: 22px; height: 22px; border-radius: 6px; border: 1px solid rgb(0 0 0 / .25); background: rgb(255 255 255 / .85); display: grid; place-items: center; color: #111; }
+.stock[aria-checked="false"] { background: rgb(255 255 255 / .35); color: transparent; }
+.stock svg { width: 14px; height: 14px; }
+.foot { padding: 10px 16px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
+.foot .btn { padding: 5px 9px; font-size: 12px; }
+.foot .src { flex-basis: 100%; }
+.foot a { color: var(--accent); }
+.io { padding: 10px 16px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.io textarea { width: 100%; min-height: 70px; font-family: var(--mono); font-size: 11px; background: var(--raise); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 6px; }
+.empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
+
+.banner { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.banner h2 { color: var(--accent); }
+.lead { margin: 0 0 10px; line-height: 1.45; max-width: 60ch; }
+#friendBox textarea, #shareBox textarea { width: 100%; min-height: 64px; font-family: var(--mono); font-size: 11px; background: var(--raise); border: 1px solid var(--line); border-radius: 8px; color: var(--fg); padding: 6px; margin: 6px 0; word-break: break-all; }
+.langsel { background: var(--raise); border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px; font-weight: 500; }
+.repos { display: grid; gap: 4px; max-height: 30vh; overflow-y: auto; }
+.repos button { text-align: left; border: 1px solid var(--line); background: var(--raise); border-radius: 7px; padding: 6px 9px; font-family: var(--mono); font-size: 12px; }
+.repos button:hover { border-color: var(--accent); }
+body.friend .owner-only, body.friend .stock, body.friend .fam h3 button, body.friend .foot, body.friend .io, body.friend #partsBox, body.friend .check, body.reply .owner-only { display: none !important; }
+body.reply #friendForm { display: none !important; }
+@media (max-width: 820px) {
+  body { overflow: auto; }
+  .app { height: auto; grid-template-columns: 1fr; grid-template-rows: auto 56vh auto; }
+  aside.panel { border-left: 0; border-top: 1px solid var(--line); }
+  .slots { max-height: none; }
+  .list { overflow: visible; }
+  .sec, .cat .tools, .list, .foot, .io { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .brand .file { display: none; }
+  .long { display: none; }
+  header.bar { flex-wrap: nowrap; gap: 8px; }
+  .brand h1 { font-size: 16px; }
+  .btn { padding: 6px 10px; }
+  .hud { left: 8px; right: 8px; bottom: 8px; }
+  .chipbar { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .chipbar > * { flex: none; }
+  .dims { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+
+<div class="app">
+  <header class="bar">
+    <div class="brand"><h1>Atelier Filament</h1><span class="file" id="fileName">Exemple : vase torsadé</span></div>
+    <button class="btn" id="reposBtn" type="button" hidden>Mes modèles</button>
+    <button class="btn owner-only" id="sampleBtn" type="button">Exemple</button>
+    <button class="btn owner-only" id="shareBtn" type="button">Partager</button>
+    <button class="btn primary owner-only" id="openBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m0 0-4 4m4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+      <span><span id="openTxt">Ouvrir</span><span class="long"> STL / 3MF</span></span>
+    </button>
+    <select id="langSel" class="langsel" aria-label="Langue"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option></select>
+    <input type="file" id="fileInput" accept=".stl,.3mf" multiple hidden>
+  </header>
+
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="Vue 3D du modèle"></canvas>
+    <div class="drop" id="drop" hidden>Déposez vos fichiers STL ou 3MF</div>
+    <div class="loading" id="loading" hidden>Chargement…</div>
+    <div class="toast" id="toast" hidden></div>
+    <div class="hud">
+      <div class="chipbar" role="group" aria-label="Options de rendu">
+        <button class="tog" id="tLayers" aria-pressed="true" type="button">Lignes de couche</button>
+        <select id="layerH" aria-label="Hauteur de couche">
+          <option value="0.07">0,07 mm</option><option value="0.1">0,10 mm</option><option value="0.15">0,15 mm</option>
+          <option value="0.2" selected>0,20 mm</option><option value="0.25">0,25 mm</option><option value="0.3">0,30 mm</option>
+        </select>
+        <select id="bgSel" aria-label="Décor">
+          <option value="auto">Studio (thème)</option><option value="light">Studio clair</option><option value="dark">Studio sombre</option><option value="bed">Plateau texturé</option>
+        </select>
+        <button class="tog" id="tAO" aria-pressed="true" type="button">Ombres douces</button>
+        <button class="tog" id="tRotate" aria-pressed="false" type="button">Rotation</button>
+        <button class="tog" id="tFit" aria-pressed="false" type="button">Recadrer</button>
+      </div>
+      <div class="dims" id="dims">—</div>
+    </div>
+  </main>
+
+  <aside class="panel">
+    <section class="sec banner" id="friendBox" hidden>
+      <h2 id="friendTitle">À toi de choisir</h2>
+      <p class="lead" id="friendLead"></p>
+      <div class="row" id="friendForm">
+        <input class="search" id="who" type="text" placeholder="Ton prénom" aria-label="Ton prénom" maxlength="40" style="flex:1;min-width:0">
+        <button class="btn primary" id="sendBtn" type="button">Envoyer mon choix</button>
+      </div>
+      <div class="row" id="replyForm" hidden><button class="btn" id="takeBtn" type="button">Reprendre ce modèle dans mon atelier</button></div>
+      <div id="replyOut" hidden>
+        <p class="hint" id="replyHint">Copie ce lien et envoie-le à la personne qui imprime (SMS, WhatsApp, mail).</p>
+        <textarea id="replyLink" readonly spellcheck="false"></textarea>
+        <button class="btn" id="replyCopy" type="button">Copier le lien</button>
+      </div>
+    </section>
+    <section class="sec" id="shareBox" hidden>
+      <h2 id="shareTitle">Partager avec un ami</h2>
+      <p class="hint" id="shareInfo" style="margin-top:0"></p>
+      <input class="search" id="shareNote" type="text" maxlength="120" placeholder="Un mot pour ton ami (facultatif)" aria-label="Message pour ton ami">
+      <div class="row" style="margin-top:8px"><button class="btn primary" id="shareMake" type="button">Créer le lien</button><button class="btn" id="shareClose" type="button">Fermer</button></div>
+      <div id="shareOut" hidden style="margin-top:8px">
+        <textarea id="shareLink" readonly spellcheck="false"></textarea>
+        <div class="row"><button class="btn" id="shareCopy" type="button">Copier le lien</button><span class="hint" id="shareSize" style="margin:0"></span></div>
+      </div>
+    </section>
+    <section class="sec" id="reposBox" hidden>
+      <h2><span id="reposTitle">Mes modèles</span> <span class="count" id="reposSub">dossier modeles/ du dépôt</span></h2>
+      <div id="reposList" class="repos"></div>
+      <div class="row" style="margin-top:8px"><button class="btn" id="reposClose" type="button">Fermer</button></div>
+    </section>
+    <section class="sec">
+      <h2><span id="colorsTitle">Couleurs du modèle</span> <span class="count" id="slotCount"></span></h2>
+      <div class="slots" id="slots"></div>
+      <details class="parts" id="partsBox" hidden>
+        <summary id="partsSum">Pièces</summary>
+        <div id="parts"></div>
+      </details>
+      <p class="hint" id="slotHint">Choisissez une couleur ci-dessus, puis un filament dans la liste. Un clic sur le modèle sélectionne aussi sa couleur.</p>
+    </section>
+    <section class="cat">
+      <div class="tools">
+        <input class="search" id="q" type="search" placeholder="Rechercher un filament (ex. galaxy, blue, mat)" aria-label="Rechercher un filament">
+        <div class="row">
+          <div class="seg" role="group" aria-label="Matière">
+            <button type="button" data-t="all" aria-pressed="true">Tous</button>
+            <button type="button" data-t="PLA" aria-pressed="false">PLA</button>
+            <button type="button" data-t="PETG" aria-pressed="false">PETG</button>
+          </div>
+          <label class="check"><input type="checkbox" id="onlyStock"> <span id="onlyStockTxt">En stock uniquement</span></label>
+        </div>
+      </div>
+      <div class="list" id="list"></div>
+    </section>
+    <div class="io" id="io" hidden>
+      <label for="ioText" id="ioLabel" style="font-size:12px;color:var(--muted)">Liste de stock (copiez-la pour la sauvegarder, ou collez-en une puis importez)</label>
+      <textarea id="ioText" spellcheck="false"></textarea>
+      <div class="row"><button class="btn" id="ioImport" type="button">Importer cette liste</button><button class="btn" id="ioClose" type="button">Fermer</button></div>
+    </div>
+    <div class="foot">
+      <span id="stockCount"></span>
+      <button class="btn" id="ioBtn" type="button" style="margin-left:auto">Sauvegarder / importer</button>
+      <span class="src">Couleurs mesurées : base OpenPrintTag (Prusa). Gamme vérifiée sur prusa3d.com, 20 nov. 2026.</span>
+    </div>
+  </aside>
+</div>
+
+<script>window.CATALOG = [{"id":"petg-anthracite-grey","type":"PETG","fam":"PETG","name":"Anthracite Grey","hex":"#3f4647","td":0.3,"tags":[],"fin":[]},{"id":"petg-carbon-fiber-black","type":"PETG","fam":"PETG technique","name":"Carbon Fiber Black","hex":"#3b353a","td":0.3,"tags":["abrasive","contains_carbon","contains_carbon_fiber"],"fin":["carbone"]},{"id":"petg-carmine-red","type":"PETG","fam":"PETG","name":"Carmine Red","hex":"#b54230","td":6.2,"tags":["glitter","translucent"],"fin":["pailleté","translucide"]},{"id":"petg-chalky-blue","type":"PETG","fam":"PETG","name":"Chalky Blue","hex":"#6f9aaa","td":0.6,"tags":[],"fin":[]},{"id":"petg-clear","type":"PETG","fam":"PETG","name":"Clear","hex":"#e4e7e5","td":100,"tags":["translucent","transparent","without_pigments"],"fin":["transparent"]},{"id":"petg-electric-green","type":"PETG","fam":"PETG","name":"Electric Green","hex":"#9be3bf","td":null,"tags":[],"fin":[]},{"id":"petg-emerald-green","type":"PETG","fam":"PETG","name":"Emerald Green","hex":"#115740","td":null,"tags":[],"fin":[]},{"id":"petg-esd-black","type":"PETG","fam":"PETG technique","name":"ESD Black","hex":"#000000","td":null,"tags":["abrasive","contains_carbon","contains_carbon_fiber","esd_safe"],"fin":["carbone"]},{"id":"petg-jet-black","type":"PETG","fam":"PETG","name":"Jet Black","hex":"#292b2b","td":0.3,"tags":[],"fin":[]},{"id":"petg-jungle-green","type":"PETG","fam":"PETG","name":"Jungle Green","hex":"#007249","td":0.5,"tags":[],"fin":[]},{"id":"petg-lipstick-red","type":"PETG","fam":"PETG","name":"Lipstick Red","hex":"#bb2e33","td":2.8,"tags":[],"fin":[]},{"id":"petg-magnetite-40-grey","type":"PETG","fam":"PETG technique","name":"Magnetite 40% Grey","hex":"#272e29","td":null,"tags":["abrasive","contains_magnetite"],"fin":[]},{"id":"petg-mango-yellow","type":"PETG","fam":"PETG","name":"Mango Yellow","hex":"#f2b70a","td":2.6,"tags":[],"fin":[]},{"id":"petg-matte-black","type":"PETG","fam":"PETG","name":"Matte Black","hex":"#303635","td":0.3,"tags":["matte"],"fin":["mat"]},{"id":"petg-matte-noctua-beige","type":"PETG","fam":"PETG","name":"Matte Noctua Beige","hex":"#e7ceb4","td":null,"tags":["matte"],"fin":["mat"]},{"id":"petg-matte-noctua-brown","type":"PETG","fam":"PETG","name":"Matte Noctua Brown","hex":"#653525","td":null,"tags":["matte"],"fin":["mat"]},{"id":"petg-neon-green","type":"PETG","fam":"PETG","name":"Neon Green","hex":"#a6ec5f","td":75.0,"tags":["translucent"],"fin":["translucide"]},{"id":"petg-ocean-blue","type":"PETG","fam":"PETG","name":"Ocean Blue","hex":"#194c55","td":3,"tags":[],"fin":[]},{"id":"petg-pistachio-green","type":"PETG","fam":"PETG","name":"Pistachio Green","hex":"#93a683","td":0.9,"tags":[],"fin":[]},{"id":"petg-prusa-galaxy-black","type":"PETG","fam":"PETG","name":"Prusa Galaxy Black","hex":"#3d3e3d","td":0.2,"tags":["glitter"],"fin":["pailleté"]},{"id":"petg-prusa-orange-transparent","type":"PETG","fam":"PETG","name":"Prusa Orange Transparent","hex":"#f17231","td":44.2,"tags":["translucent"],"fin":["translucide"]},{"id":"petg-prusa-orange","type":"PETG","fam":"PETG","name":"Prusa Orange","hex":"#eb5405","td":6.2,"tags":[],"fin":[]},{"id":"petg-prusa-pro-green","type":"PETG","fam":"PETG","name":"Prusa Pro Green","hex":"#00fa9a","td":null,"tags":[],"fin":[]},{"id":"petg-recycled-black","type":"PETG","fam":"PETG recyclé","name":"Recycled Black","hex":"#000000","td":null,"tags":["recycled"],"fin":[]},{"id":"petg-recycled","type":"PETG","fam":"PETG recyclé","name":"Recycled","hex":"#556d5a","td":null,"tags":["recycled"],"fin":[]},{"id":"petg-shimmering-violet","type":"PETG","fam":"PETG","name":"Shimmering Violet","hex":"#1d1991","td":null,"tags":["glitter","translucent"],"fin":["pailleté","translucide"]},{"id":"petg-signal-white","type":"PETG","fam":"PETG","name":"Signal White","hex":"#e5e0e3","td":3.4,"tags":[],"fin":[]},{"id":"petg-sky-blue","type":"PETG","fam":"PETG","name":"Sky Blue","hex":"#346ce3","td":null,"tags":[],"fin":[]},{"id":"petg-terracotta-light","type":"PETG","fam":"PETG","name":"Terracotta Light","hex":"#b87f6a","td":1.5,"tags":[],"fin":[]},{"id":"petg-tungsten-75","type":"PETG","fam":"PETG technique","name":"Tungsten 75%","hex":"#545252","td":0.3,"tags":["abrasive","contains_metal","contains_tungsten","radiation_shielding"],"fin":[]},{"id":"petg-ultraglow-green","type":"PETG","fam":"PETG technique","name":"Ultraglow Green","hex":"#eefce6","td":null,"tags":["abrasive","glow_in_the_dark","illuminescent_color_change"],"fin":["phosphorescent"]},{"id":"petg-ultramarine-blue","type":"PETG","fam":"PETG","name":"Ultramarine Blue","hex":"#2b3b61","td":8.2,"tags":["translucent"],"fin":["translucide"]},{"id":"petg-urban-grey","type":"PETG","fam":"PETG","name":"Urban Grey","hex":"#95908d","td":0.5,"tags":[],"fin":[]},{"id":"petg-v0-jet-black","type":"PETG","fam":"PETG technique","name":"V0 Jet Black","hex":"#363331","td":0.3,"tags":["self_extinguishing"],"fin":[]},{"id":"petg-v0-natural","type":"PETG","fam":"PETG technique","name":"V0 Natural","hex":"#dee2da","td":10.4,"tags":["self_extinguishing","without_pigments"],"fin":["translucide"]},{"id":"petg-yellow-gold","type":"PETG","fam":"PETG","name":"Yellow Gold","hex":"#9a8524","td":9.2,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-anniversary-le-2025","type":"PLA","fam":"PLA édition limitée","name":"Anniversary LE 2025","hex":"#e35102","td":null,"tags":["glitter","limited_edition"],"fin":["pailleté"]},{"id":"pla-anthracite-grey","type":"PLA","fam":"PLA","name":"Anthracite Grey","hex":"#3c474a","td":null,"tags":[],"fin":[]},{"id":"pla-army-green","type":"PLA","fam":"PLA","name":"Army Green","hex":"#524f2f","td":0.4,"tags":[],"fin":[]},{"id":"pla-azure-blue","type":"PLA","fam":"PLA","name":"Azure Blue","hex":"#008fbe","td":5.5,"tags":[],"fin":[]},{"id":"pla-blend-coppercabana","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Coppercabana","hex":"#ae7f69","td":null,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-lime-green","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Lime Green","hex":"#9eb426","td":3.5,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-ms-pink","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Ms. Pink","hex":"#ff36ac","td":4.1,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-my-silverness","type":"PLA","fam":"PLA Blend (soie)","name":"Blend My Silverness","hex":"#8894a3","td":1.0,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-oh-my-gold","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Oh My Gold","hex":"#daa900","td":4.1,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-pearl-white","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Pearl White","hex":"#d1d8df","td":5.4,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-royal-blue","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Royal Blue","hex":"#0065aa","td":0.8,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blend-viva-la-bronze","type":"PLA","fam":"PLA Blend (soie)","name":"Blend Viva La Bronze","hex":"#bc8624","td":1.9,"tags":["blend","silk"],"fin":["soie"]},{"id":"pla-blood-red","type":"PLA","fam":"PLA","name":"Blood Red","hex":"#83242e","td":null,"tags":[],"fin":[]},{"id":"pla-chalky-blue","type":"PLA","fam":"PLA","name":"Chalky Blue","hex":"#729eba","td":null,"tags":[],"fin":[]},{"id":"pla-cmyk-cyan","type":"PLA","fam":"PLA CMYK / ColorMix","name":"CMYK Cyan","hex":"#00acd6","td":null,"tags":[],"fin":[]},{"id":"pla-cmyk-magenta","type":"PLA","fam":"PLA CMYK / ColorMix","name":"CMYK Magenta","hex":"#d64487","td":null,"tags":[],"fin":[]},{"id":"pla-cmyk-yellow","type":"PLA","fam":"PLA CMYK / ColorMix","name":"CMYK Yellow","hex":"#ffde00","td":null,"tags":[],"fin":[]},{"id":"pla-colormix-black","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Black","hex":"#544f4d","td":null,"tags":[],"fin":[]},{"id":"pla-colormix-cyan","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Cyan","hex":"#00aed5","td":null,"tags":[],"fin":[]},{"id":"pla-colormix-gold-glitter","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Gold Glitter","hex":"#ddcaa9","td":null,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-colormix-magenta","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Magenta","hex":"#d25b96","td":null,"tags":[],"fin":[]},{"id":"pla-colormix-silver-glitter","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Silver Glitter","hex":"#a4a09f","td":null,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-colormix-white","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix White","hex":"#f1e8dd","td":null,"tags":[],"fin":[]},{"id":"pla-colormix-yellow","type":"PLA","fam":"PLA CMYK / ColorMix","name":"ColorMix Yellow","hex":"#ffce02","td":null,"tags":[],"fin":[]},{"id":"pla-electric-green","type":"PLA","fam":"PLA","name":"Electric Green","hex":"#a1f0b9","td":null,"tags":[],"fin":[]},{"id":"pla-emerald-green","type":"PLA","fam":"PLA","name":"Emerald Green","hex":"#006441","td":null,"tags":[],"fin":[]},{"id":"pla-galaxy-green","type":"PLA","fam":"PLA","name":"Galaxy Green","hex":"#334728","td":3.2,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-galaxy-purple","type":"PLA","fam":"PLA","name":"Galaxy Purple","hex":"#563b7c","td":4.7,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-galaxy-red","type":"PLA","fam":"PLA","name":"Galaxy Red","hex":"#8d2129","td":null,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-galaxy-silver","type":"PLA","fam":"PLA","name":"Galaxy Silver","hex":"#a4a0a3","td":6.4,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-gentlemans-grey","type":"PLA","fam":"PLA","name":"Gentleman's Grey","hex":"#294748","td":0.3,"tags":[],"fin":[]},{"id":"pla-gravity-grey","type":"PLA","fam":"PLA","name":"Gravity Grey","hex":"#a9a9b0","td":0.7,"tags":[],"fin":[]},{"id":"pla-high-speed-gravity-grey","type":"PLA","fam":"PLA High Speed","name":"High Speed Gravity Grey","hex":"#a5a5ac","td":null,"tags":["high_speed"],"fin":[]},{"id":"pla-high-speed-lipstick-red","type":"PLA","fam":"PLA High Speed","name":"High Speed Lipstick Red","hex":"#ff0000","td":null,"tags":["high_speed"],"fin":[]},{"id":"pla-high-speed-pristine-white","type":"PLA","fam":"PLA High Speed","name":"High Speed Pristine White","hex":"#ffffff","td":null,"tags":["high_speed"],"fin":[]},{"id":"pla-high-speed-prusa-galaxy-black","type":"PLA","fam":"PLA High Speed","name":"High Speed Prusa Galaxy Black","hex":"#292929","td":null,"tags":["glitter","high_speed"],"fin":["pailleté"]},{"id":"pla-high-speed-prusa-orange","type":"PLA","fam":"PLA High Speed","name":"High Speed Prusa Orange","hex":"#ff6600","td":null,"tags":["high_speed"],"fin":[]},{"id":"pla-jet-black","type":"PLA","fam":"PLA","name":"Jet Black","hex":"#222f2e","td":0.3,"tags":[],"fin":[]},{"id":"pla-lightweight-army-green","type":"PLA","fam":"PLA Lightweight","name":"Lightweight Army Green","hex":"#524f2f","td":null,"tags":["blend","foaming"],"fin":["moussé"]},{"id":"pla-lightweight-chocolate-brown","type":"PLA","fam":"PLA Lightweight","name":"Lightweight Chocolate Brown","hex":"#4c2d17","td":null,"tags":["blend","foaming"],"fin":["moussé"]},{"id":"pla-lightweight-coral-orange","type":"PLA","fam":"PLA Lightweight","name":"Lightweight Coral Orange","hex":"#ff7041","td":null,"tags":["blend","foaming"],"fin":["moussé"]},{"id":"pla-lightweight-galaxy-black","type":"PLA","fam":"PLA Lightweight","name":"Lightweight Galaxy Black","hex":"#4b4545","td":null,"tags":["blend","foaming","glitter"],"fin":["pailleté","moussé"]},{"id":"pla-lightweight-natural","type":"PLA","fam":"PLA Lightweight","name":"Lightweight Natural","hex":"#f9f8f6","td":null,"tags":["blend","foaming","without_pigments"],"fin":["moussé"]},{"id":"pla-lipstick-red","type":"PLA","fam":"PLA","name":"Lipstick Red","hex":"#c20019","td":3.3,"tags":[],"fin":[]},{"id":"pla-marble-grey","type":"PLA","fam":"PLA","name":"Marble Grey","hex":"#c2c2c5","td":3.5,"tags":["imitates_marble"],"fin":["marbré"]},{"id":"pla-mystic-brown","type":"PLA","fam":"PLA Premium","name":"Mystic Brown","hex":"#582c2f","td":1.8,"tags":["iridescent"],"fin":["irisé"]},{"id":"pla-mystic-green","type":"PLA","fam":"PLA Premium","name":"Mystic Green","hex":"#5f5d3d","td":1,"tags":["iridescent"],"fin":["irisé"]},{"id":"pla-natural","type":"PLA","fam":"PLA","name":"Natural","hex":"#bda096","td":null,"tags":["without_pigments"],"fin":["translucide"]},{"id":"pla-noctua-beige","type":"PLA","fam":"PLA","name":"Noctua Beige","hex":"#f0d6bf","td":null,"tags":[],"fin":[]},{"id":"pla-noctua-brown","type":"PLA","fam":"PLA","name":"Noctua Brown","hex":"#75483d","td":null,"tags":[],"fin":[]},{"id":"pla-opal-green","type":"PLA","fam":"PLA","name":"Opal Green","hex":"#005d48","td":4,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-pearl-mouse","type":"PLA","fam":"PLA","name":"Pearl Mouse","hex":"#968d80","td":2.3,"tags":[],"fin":[]},{"id":"pla-pineapple-yellow","type":"PLA","fam":"PLA","name":"Pineapple Yellow","hex":"#eabd00","td":7.6,"tags":[],"fin":[]},{"id":"pla-pistachio-green","type":"PLA","fam":"PLA","name":"Pistachio Green","hex":"#9bb085","td":null,"tags":[],"fin":[]},{"id":"pla-pristine-white","type":"PLA","fam":"PLA","name":"Pristine White","hex":"#e9e7e4","td":5.1,"tags":[],"fin":[]},{"id":"pla-prusa-galaxy-black","type":"PLA","fam":"PLA","name":"Prusa Galaxy Black","hex":"#4b4545","td":0.2,"tags":["glitter"],"fin":["pailleté"]},{"id":"pla-prusa-orange","type":"PLA","fam":"PLA","name":"Prusa Orange","hex":"#ff7041","td":6.6,"tags":[],"fin":[]},{"id":"pla-prusa-pro-green","type":"PLA","fam":"PLA","name":"Prusa Pro Green","hex":"#00cc8c","td":null,"tags":[],"fin":[]},{"id":"pla-recycled","type":"PLA","fam":"PLA recyclé","name":"Recycled","hex":"#556d5a","td":null,"tags":["recycled"],"fin":[]},{"id":"pla-sakura-pink","type":"PLA","fam":"PLA","name":"Sakura Pink","hex":"#fcd9e5","td":null,"tags":[],"fin":[]},{"id":"pla-simply-green","type":"PLA","fam":"PLA","name":"Simply Green","hex":"#6fa02d","td":3,"tags":[],"fin":[]},{"id":"pla-vanilla-white","type":"PLA","fam":"PLA","name":"Vanilla White","hex":"#e1d3c3","td":7.1,"tags":[],"fin":[]},{"id":"rpla-algae-pigment","type":"PLA","fam":"rPLA","name":"rPLA Algae Pigment","hex":"#674b42","td":4.2,"tags":["contains_algae","contains_organic_material","recycled"],"fin":[]},{"id":"rpla-corn-pigment","type":"PLA","fam":"rPLA","name":"rPLA Corn Pigment","hex":"#b37b47","td":6.2,"tags":["contains_organic_material","recycled"],"fin":[]},{"id":"rpla-risotto-pigment","type":"PLA","fam":"rPLA","name":"rPLA Risotto Pigment","hex":"#ccc9c0","td":11.0,"tags":["contains_organic_material","recycled"],"fin":[]},{"id":"rpla-wine-pigment","type":"PLA","fam":"rPLA","name":"rPLA Wine Pigment","hex":"#5e4940","td":2.8,"tags":["contains_organic_material","recycled"],"fin":[]}];</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { STLLoader } from 'three/addons/loaders/STLLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { toCreasedNormals } from 'three/addons/utils/BufferGeometryUtils.js';
+import { unzipSync, deflateSync, inflateSync, strToU8, strFromU8 } from 'three/addons/libs/fflate.module.js';
+
+const $ = (id) => document.getElementById(id);
+const CAT = window.CATALOG;
+const BY_ID = Object.fromEntries(CAT.map(f => [f.id, f]));
+/* ---------- Langues ---------- */
+const I18N = {
+  fr: {
+    locale: 'fr-FR', sample: 'Exemple', samplePiece: 'Exemple : vase torsadé', myModels: 'Mes modèles', share: 'Partager', open: 'Ouvrir', langLabel: 'Langue',
+    view3d: 'Vue 3D du modèle', drop: 'Dépose tes fichiers STL ou 3MF', loading: 'Chargement…', renderOpts: 'Options de rendu',
+    layers: 'Lignes de couche', layerH: 'Hauteur de couche', decor: 'Décor', bgAuto: 'Studio (thème)', bgLight: 'Studio clair', bgDark: 'Studio sombre', bgBed: 'Plateau texturé',
+    softShadows: 'Ombres douces', rotate: 'Rotation', fit: 'Recadrer',
+    yourName: 'Ton prénom', sendChoice: 'Envoyer mon choix', takeOver: 'Reprendre ce modèle dans mon atelier',
+    replyHint: 'Copie ce lien et envoie-le à la personne qui imprime (SMS, WhatsApp, mail).', copyLink: 'Copier le lien',
+    shareTitle: 'Partager avec un ami', shareNote: 'Un mot pour ton ami (facultatif)', makeLink: 'Créer le lien', close: 'Fermer',
+    reposSub: 'dossier modeles/ du dépôt', modelColors: 'Couleurs du modèle', parts: 'Pièces',
+    slotHint: 'Choisis une couleur ci-dessus, puis un filament dans la liste. Un clic sur le modèle sélectionne aussi sa couleur.',
+    search: 'Rechercher un filament (ex. galaxy, blue, mat)', material: 'Matière', all: 'Tous', onlyStock: 'En stock uniquement',
+    stockLabel: 'Liste de stock (copie-la pour la sauvegarder, ou colles-en une puis importe-la)', importList: 'Importer cette liste', saveImport: 'Sauvegarder / importer',
+    source: 'Couleurs mesurées : base OpenPrintTag (Prusa). Gamme vérifiée sur prusa3d.com, 20 nov. 2026.',
+    part: 'Pièce', color: 'Couleur', pieces: (n) => `${n} pièce${n > 1 ? 's' : ''}`, notInStock: 'pas en stock', painted: 'peinte', inStock: 'En stock',
+    partsSum: (n) => `Pièces (${n}) : changer leur couleur`, colorOf: (p) => `Couleur de ${p}`,
+    removeAll: 'Tout retirer', allInStock: 'Tout en stock', noMatch: 'Aucun filament ne correspond. Essaie un autre mot ou décoche « En stock uniquement ».',
+    stockCount: (n, t) => `${n} / ${t} filaments en stock`, applied: (n, f, s) => `Couleur ${n} : ${f}${s ? '' : ' (pas en stock)'}`,
+    listCopied: 'Liste copiée dans le presse-papiers', imported: (n) => `${n} filaments importés`, badList: 'Cette liste n’est pas lisible. Colle le texte copié depuis ce bouton.',
+    formats: 'Formats acceptés : .stl et .3mf', projColors: 'Couleurs du projet reprises avec le filament le plus proche de ton stock', toChoose: (n) => `${n} couleur${n > 1 ? 's' : ''} à choisir`,
+    errNoMesh: (f) => `« ${f} » ne contient aucun maillage lisible.`, errRead: 'Lecture impossible : le fichier semble endommagé ou dans un format non pris en charge.',
+    selectCopy: 'Sélectionne le lien puis copie-le',
+    notHosted: 'Le partage fonctionne une fois l’appli mise en ligne (GitHub Pages ou Netlify). Ici, dans claude.ai, tes amis ne pourraient pas ouvrir le lien.',
+    shareInfo: (n) => `Ton ami verra ce modèle avec tes couleurs actuelles et pourra choisir parmi tes ${n} filaments en stock.`,
+    tooBig: (k) => `Ce fichier est trop gros pour tenir dans un lien (${k} Ko compressé). Dépose-le dans le dossier « modeles » de ton dépôt GitHub, puis ouvre-le avec « Mes modèles » et recommence.`,
+    longLink: (k) => `Lien long (${k} Ko) : préfère WhatsApp ou le mail au SMS.`, linkCopiedFriend: 'Lien copié : envoie-le à ton ami', linkCopied: 'Lien copié',
+    needName: 'Indique ton prénom pour que l’on sache de qui vient ce choix', replyTooBig: 'Ce modèle est trop gros pour être renvoyé dans un lien',
+    replyCopied: 'Lien de ton choix copié : colle-le dans ton message', tookOver: 'Modèle repris dans ton atelier, avec les couleurs choisies',
+    notFound: (p) => `« ${p} » est introuvable sur le site.`, mb: 'Mo',
+    noRepoModels: 'Aucun modèle pour l’instant. Sur github.com, ouvre ton dépôt, crée un dossier « modeles » et glisses-y tes fichiers STL ou 3MF. Ils apparaîtront ici une minute plus tard.',
+    badLink: 'Ce lien est incomplet. Demande à la personne de te le renvoyer en entier.', modelMissing: 'Modèle introuvable',
+    friendTitle: 'À toi de choisir les couleurs',
+    friendLead: (n) => `Pour chaque couleur de la pièce, clique dessus puis choisis un filament dans la liste (${n} disponibles). Tourne la pièce avec la souris ou le doigt pour la voir sous tous les angles.`,
+    replyTitle: (w) => `Choix de ${w || 'ton ami'}`, replyLead: 'Voici les couleurs choisies. Les filaments que tu n’as plus en stock sont signalés.',
+    quote: (s) => `« ${s} » `, sampleParts: ['Vase', 'Socle', 'Bouton'],
+    fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (soie)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'PLA recyclé', 'PLA édition limitée': 'PLA édition limitée', 'PETG': 'PETG', 'PETG technique': 'PETG technique', 'PETG recyclé': 'PETG recyclé' },
+    fin: { 'mat': 'mat', 'soie': 'soie', 'pailleté': 'pailleté', 'irisé': 'irisé', 'transparent': 'transparent', 'translucide': 'translucide', 'marbré': 'marbré', 'phosphorescent': 'phosphorescent', 'carbone': 'carbone', 'moussé': 'moussé' },
+  },
+  en: {
+    locale: 'en-GB', sample: 'Sample', samplePiece: 'Sample: twisted vase', myModels: 'My models', share: 'Share', open: 'Open', langLabel: 'Language',
+    view3d: '3D view of the model', drop: 'Drop your STL or 3MF files', loading: 'Loading…', renderOpts: 'Render options',
+    layers: 'Layer lines', layerH: 'Layer height', decor: 'Backdrop', bgAuto: 'Studio (theme)', bgLight: 'Light studio', bgDark: 'Dark studio', bgBed: 'Textured sheet',
+    softShadows: 'Soft shadows', rotate: 'Rotate', fit: 'Reframe',
+    yourName: 'Your first name', sendChoice: 'Send my choice', takeOver: 'Open this model in my workshop',
+    replyHint: 'Copy this link and send it to the person printing for you (text, WhatsApp, email).', copyLink: 'Copy link',
+    shareTitle: 'Share with a friend', shareNote: 'A note for your friend (optional)', makeLink: 'Create link', close: 'Close',
+    reposSub: 'modeles/ folder of the repository', modelColors: 'Model colours', parts: 'Parts',
+    slotHint: 'Pick a colour above, then a filament from the list. Clicking the model also selects its colour.',
+    search: 'Search filaments (e.g. galaxy, blue, matte)', material: 'Material', all: 'All', onlyStock: 'In stock only',
+    stockLabel: 'Stock list (copy it to keep a backup, or paste one and import it)', importList: 'Import this list', saveImport: 'Back up / import',
+    source: 'Measured colours: OpenPrintTag database (Prusa). Range checked on prusa3d.com, 20 Nov 2026.',
+    part: 'Part', color: 'Colour', pieces: (n) => `${n} part${n > 1 ? 's' : ''}`, notInStock: 'not in stock', painted: 'painted', inStock: 'In stock',
+    partsSum: (n) => `Parts (${n}): change their colour`, colorOf: (p) => `Colour of ${p}`,
+    removeAll: 'Remove all', allInStock: 'All in stock', noMatch: 'No filament matches. Try another word or untick “In stock only”.',
+    stockCount: (n, t) => `${n} / ${t} filaments in stock`, applied: (n, f, s) => `Colour ${n}: ${f}${s ? '' : ' (not in stock)'}`,
+    listCopied: 'List copied to the clipboard', imported: (n) => `${n} filaments imported`, badList: 'This list can’t be read. Paste the text copied with this button.',
+    formats: 'Accepted formats: .stl and .3mf', projColors: 'Project colours matched to the closest filament in your stock', toChoose: (n) => `${n} colour${n > 1 ? 's' : ''} to choose`,
+    errNoMesh: (f) => `“${f}” contains no readable mesh.`, errRead: 'Can’t read this file: it looks damaged or uses an unsupported format.',
+    selectCopy: 'Select the link and copy it',
+    notHosted: 'Sharing works once the app is online (GitHub Pages or Netlify). Here in claude.ai, your friends couldn’t open the link.',
+    shareInfo: (n) => `Your friend will see this model with your current colours and can choose from your ${n} filaments in stock.`,
+    tooBig: (k) => `This file is too big to fit in a link (${k} KB compressed). Put it in the “modeles” folder of your GitHub repository, open it with “My models”, then try again.`,
+    longLink: (k) => `Long link (${k} KB): use WhatsApp or email rather than a text message.`, linkCopiedFriend: 'Link copied: send it to your friend', linkCopied: 'Link copied',
+    needName: 'Enter your first name so they know who the choice is from', replyTooBig: 'This model is too big to be sent back in a link',
+    replyCopied: 'Link to your choice copied: paste it into your message', tookOver: 'Model opened in your workshop with the chosen colours',
+    notFound: (p) => `“${p}” wasn’t found on the site.`, mb: 'MB',
+    noRepoModels: 'No models yet. On github.com, open your repository, create a “modeles” folder and drag your STL or 3MF files into it. They’ll show up here a minute later.',
+    badLink: 'This link is incomplete. Ask the sender to send it again in full.', modelMissing: 'Model not found',
+    friendTitle: 'Your turn to pick the colours',
+    friendLead: (n) => `For each colour of the part, click it, then pick a filament from the list (${n} available). Turn the part with your mouse or finger to see it from every angle.`,
+    replyTitle: (w) => `${w || 'Your friend'}’s choice`, replyLead: 'Here are the chosen colours. Filaments you no longer have in stock are flagged.',
+    quote: (s) => `“${s}” `, sampleParts: ['Vase', 'Base', 'Knob'],
+    fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (silk)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'Recycled PLA', 'PLA édition limitée': 'PLA limited edition', 'PETG': 'PETG', 'PETG technique': 'Technical PETG', 'PETG recyclé': 'Recycled PETG' },
+    fin: { 'mat': 'matte', 'soie': 'silk', 'pailleté': 'glitter', 'irisé': 'iridescent', 'transparent': 'transparent', 'translucide': 'translucent', 'marbré': 'marble', 'phosphorescent': 'glow-in-the-dark', 'carbone': 'carbon fibre', 'moussé': 'foamed' },
+  },
+  de: {
+    locale: 'de-DE', sample: 'Beispiel', samplePiece: 'Beispiel: gedrehte Vase', myModels: 'Meine Modelle', share: 'Teilen', open: 'Öffnen', langLabel: 'Sprache',
+    view3d: '3D-Ansicht des Modells', drop: 'STL- oder 3MF-Dateien hier ablegen', loading: 'Wird geladen…', renderOpts: 'Darstellungsoptionen',
+    layers: 'Schichtlinien', layerH: 'Schichthöhe', decor: 'Hintergrund', bgAuto: 'Studio (Design)', bgLight: 'Helles Studio', bgDark: 'Dunkles Studio', bgBed: 'Strukturiertes Druckblech',
+    softShadows: 'Weiche Schatten', rotate: 'Drehen', fit: 'Einpassen',
+    yourName: 'Dein Vorname', sendChoice: 'Meine Auswahl senden', takeOver: 'Modell in meine Werkstatt übernehmen',
+    replyHint: 'Kopiere diesen Link und schicke ihn der Person, die für dich druckt (SMS, WhatsApp, E-Mail).', copyLink: 'Link kopieren',
+    shareTitle: 'Mit Freunden teilen', shareNote: 'Eine Nachricht für deine Freunde (optional)', makeLink: 'Link erstellen', close: 'Schließen',
+    reposSub: 'Ordner modeles/ im Repository', modelColors: 'Farben des Modells', parts: 'Teile',
+    slotHint: 'Wähle oben eine Farbe und dann ein Filament aus der Liste. Ein Klick auf das Modell wählt ebenfalls seine Farbe.',
+    search: 'Filament suchen (z. B. galaxy, blue, matt)', material: 'Material', all: 'Alle', onlyStock: 'Nur vorrätige',
+    stockLabel: 'Vorratsliste (kopiere sie als Sicherung oder füge eine ein und importiere sie)', importList: 'Diese Liste importieren', saveImport: 'Sichern / importieren',
+    source: 'Gemessene Farben: OpenPrintTag-Datenbank (Prusa). Sortiment geprüft auf prusa3d.com, 20. Nov. 2026.',
+    part: 'Teil', color: 'Farbe', pieces: (n) => `${n} Teil${n > 1 ? 'e' : ''}`, notInStock: 'nicht vorrätig', painted: 'bemalt', inStock: 'Vorrätig',
+    partsSum: (n) => `Teile (${n}): Farbe ändern`, colorOf: (p) => `Farbe von ${p}`,
+    removeAll: 'Alle entfernen', allInStock: 'Alle vorrätig', noMatch: 'Kein Filament gefunden. Versuche ein anderes Wort oder deaktiviere „Nur vorrätige“.',
+    stockCount: (n, t) => `${n} / ${t} Filamente vorrätig`, applied: (n, f, s) => `Farbe ${n}: ${f}${s ? '' : ' (nicht vorrätig)'}`,
+    listCopied: 'Liste in die Zwischenablage kopiert', imported: (n) => `${n} Filamente importiert`, badList: 'Diese Liste ist nicht lesbar. Füge den Text ein, der mit dieser Schaltfläche kopiert wurde.',
+    formats: 'Unterstützte Formate: .stl und .3mf', projColors: 'Projektfarben dem ähnlichsten Filament aus deinem Vorrat zugeordnet', toChoose: (n) => `${n} Farbe${n > 1 ? 'n' : ''} auszuwählen`,
+    errNoMesh: (f) => `„${f}“ enthält kein lesbares Netz.`, errRead: 'Datei nicht lesbar: Sie scheint beschädigt zu sein oder ein nicht unterstütztes Format zu haben.',
+    selectCopy: 'Markiere den Link und kopiere ihn',
+    notHosted: 'Teilen funktioniert, sobald die App online ist (GitHub Pages oder Netlify). Hier in claude.ai könnten deine Freunde den Link nicht öffnen.',
+    shareInfo: (n) => `Deine Freunde sehen dieses Modell mit deinen aktuellen Farben und können aus deinen ${n} vorrätigen Filamenten wählen.`,
+    tooBig: (k) => `Diese Datei ist zu groß für einen Link (${k} KB komprimiert). Lege sie im Ordner „modeles“ deines GitHub-Repositorys ab, öffne sie über „Meine Modelle“ und versuche es erneut.`,
+    longLink: (k) => `Langer Link (${k} KB): Verwende lieber WhatsApp oder E-Mail statt SMS.`, linkCopiedFriend: 'Link kopiert: Schick ihn deinen Freunden', linkCopied: 'Link kopiert',
+    needName: 'Gib deinen Vornamen ein, damit man weiß, von wem die Auswahl stammt', replyTooBig: 'Dieses Modell ist zu groß, um es per Link zurückzuschicken',
+    replyCopied: 'Link zu deiner Auswahl kopiert: Füge ihn in deine Nachricht ein', tookOver: 'Modell mit den gewählten Farben in deine Werkstatt übernommen',
+    notFound: (p) => `„${p}“ wurde auf der Website nicht gefunden.`, mb: 'MB',
+    noRepoModels: 'Noch keine Modelle. Öffne dein Repository auf github.com, lege einen Ordner „modeles“ an und ziehe deine STL- oder 3MF-Dateien hinein. Sie erscheinen hier etwa eine Minute später.',
+    badLink: 'Dieser Link ist unvollständig. Bitte die Person, ihn vollständig erneut zu senden.', modelMissing: 'Modell nicht gefunden',
+    friendTitle: 'Du darfst die Farben wählen',
+    friendLead: (n) => `Klicke auf jede Farbe des Teils und wähle dann ein Filament aus der Liste (${n} verfügbar). Drehe das Teil mit der Maus oder dem Finger, um es von allen Seiten zu sehen.`,
+    replyTitle: (w) => `Auswahl von ${w || 'deinem Freund'}`, replyLead: 'Hier sind die gewählten Farben. Filamente, die du nicht mehr vorrätig hast, sind markiert.',
+    quote: (s) => `„${s}“ `, sampleParts: ['Vase', 'Sockel', 'Knopf'],
+    fam: { 'PLA': 'PLA', 'PLA Blend (soie)': 'PLA Blend (Seide)', 'PLA Premium': 'PLA Premium', 'PLA CMYK / ColorMix': 'PLA CMYK / ColorMix', 'PLA High Speed': 'PLA High Speed', 'PLA Lightweight': 'PLA Lightweight', 'rPLA': 'rPLA', 'PLA recyclé': 'Recyceltes PLA', 'PLA édition limitée': 'PLA Limited Edition', 'PETG': 'PETG', 'PETG technique': 'Technisches PETG', 'PETG recyclé': 'Recyceltes PETG' },
+    fin: { 'mat': 'matt', 'soie': 'Seide', 'pailleté': 'Glitzer', 'irisé': 'schillernd', 'transparent': 'transparent', 'translucide': 'transluzent', 'marbré': 'Marmor', 'phosphorescent': 'nachleuchtend', 'carbone': 'Carbonfaser', 'moussé': 'geschäumt' },
+  },
+};
+const LANG_KEY = 'atelier-filament:lang';
+let lang = (() => { try { const s = localStorage.getItem(LANG_KEY); if (I18N[s]) return s; } catch {} const n = (navigator.language || 'fr').slice(0, 2).toLowerCase(); return I18N[n] ? n : 'en'; })();
+const tx = (k, ...a) => { const v = I18N[lang][k] ?? I18N.fr[k]; return typeof v === 'function' ? v(...a) : v; };
+const famName = (f) => I18N[lang].fam[f] || f;
+const finNames = (fin) => fin.map(x => I18N[lang].fin[x] || x);
+const uerr = (m) => Object.assign(new Error(m), { userMsg: true });
+
+
+/* ---------- Stock (stockage local) ---------- */
+const STOCK_KEY = 'atelier-filament:stock:v1';
+const DEFAULT_FAMS = new Set(['PLA', 'PETG', 'PLA Blend (soie)', 'PLA Premium', 'PLA CMYK / ColorMix']);
+let stock = {};
+try { const s = localStorage.getItem(STOCK_KEY); if (s) stock = JSON.parse(s) || {}; else throw 0; }
+catch { stock = {}; CAT.forEach(f => { if (DEFAULT_FAMS.has(f.fam) && !f.id.includes('anniversary')) stock[f.id] = true; }); }
+const saveStock = () => { if (sharedStock) return; try { localStorage.setItem(STOCK_KEY, JSON.stringify(stock)); } catch {} };
+let sharedStock = null; // liste de stock reçue dans un lien ami
+const inStock = (id) => sharedStock ? sharedStock.has(id) : !!stock[id];
+
+/* ---------- Rendu ---------- */
+const canvas = $('cv'), stage = $('stage');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: false });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(32, 1, 0.5, 5000);
+camera.position.set(220, 160, 260);
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.08; controls.autoRotateSpeed = 1.2;
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.85;
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8a8f96, 0.35);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xfff6ec, 2.2);
+key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -0.0004;
+scene.add(key, key.target);
+const rim = new THREE.DirectionalLight(0xdfe9ff, 0.7);
+scene.add(rim, rim.target);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.28 }));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+
+// Plateau texturé procédural (feuille à revêtement poudré)
+function bedTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 1024; const g = c.getContext('2d');
+  g.fillStyle = '#2b2a28'; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 90000; i++) { const v = 30 + Math.random() * 40; g.fillStyle = `rgba(${v + 25},${v + 18},${v},${Math.random() * 0.5})`; g.fillRect(Math.random() * 1024, Math.random() * 1024, 1.6, 1.6); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+}
+const bedTex = bedTexture();
+const bed = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshPhysicalMaterial({ map: bedTex, color: 0xc9b48a, roughness: 0.55, metalness: 0.55, clearcoat: 0.2, clearcoatRoughness: 0.6 }));
+bed.receiveShadow = true; bed.visible = false; scene.add(bed);
+
+function gradientTex(top, bottom) {
+  const c = document.createElement('canvas'); c.width = 4; c.height = 512; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 512); gr.addColorStop(0, top); gr.addColorStop(1, bottom);
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 512); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const BG = { light: gradientTex('#f4f5f7', '#c9ced5'), dark: gradientTex('#2a2f37', '#0d0f12') };
+
+/* Post-traitement : occlusion ambiante (GTAO) */
+const rt = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples: 4 });
+const composer = new EffectComposer(renderer, rt);
+composer.addPass(new RenderPass(scene, camera));
+let gtao = null;
+try { gtao = new GTAOPass(scene, camera, 1, 1); gtao.blendIntensity = 0.85; composer.addPass(gtao); } catch (e) { console.warn('GTAO indisponible', e); }
+composer.addPass(new OutputPass());
+let useAO = true;
+
+/* ---------- Matériaux filament ---------- */
+const shared = {
+  uLayerH: { value: 0.2 }, uLayerAmp: { value: 0.26 }, uLayers: { value: 1 },
+  uKeyDir: { value: new THREE.Vector3(0, 1, 0) },
+};
+const GLSL_COMMON = /* glsl */`
+varying vec3 vWPos;
+uniform float uLayerH; uniform float uLayerAmp; uniform float uLayers;
+uniform vec3 uKeyDir; uniform float uFlakeDensity; uniform float uFlakeScale; uniform float uFlakeSize; uniform vec3 uFlakeColor; uniform float uSpeckle;
+vec3 fhash3(vec3 p){ p = fract(p*vec3(.1031,.1030,.0973)); p += dot(p, p.yxz+33.33); return fract((p.xxy+p.yxx)*p.zyx); }
+float dotMask(vec3 wp, float scale, float density, float size, out vec3 rnd, out float fade){
+  vec3 p = wp*scale; vec3 c = floor(p); vec3 h = fhash3(c); rnd = fhash3(c + 17.31);
+  vec3 f = fract(p) - 0.5 - (h - 0.5)*0.5; float d = length(f);
+  float aa = fwidth(d) + 1e-4;
+  fade = 1.0 - smoothstep(0.25, 0.9, fwidth(p.x) + fwidth(p.y));
+  return (1.0 - smoothstep(size - aa, size + aa, d)) * step(fract(h.y*13.7), density);
+}`;
+function patchMaterial(mat, opts) {
+  mat.userData.u = {
+    uFlakeDensity: { value: opts.flakeDensity || 0 }, uFlakeScale: { value: opts.flakeScale || 1.6 },
+    uFlakeSize: { value: opts.flakeSize || 0.16 }, uFlakeColor: { value: new THREE.Color(opts.flakeColor || 0xffffff) },
+    uSpeckle: { value: opts.speckle || 0 },
+  };
+  mat.defines = mat.defines || {};
+  if (opts.flakeDensity) mat.defines.USE_FLAKES = '';
+  if (opts.speckle) mat.defines.USE_SPECKLE = '';
+  mat.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, shared, mat.userData.u);
+    sh.vertexShader = 'varying vec3 vWPos;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vWPos = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\n' + GLSL_COMMON)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+#ifdef USE_SPECKLE
+ { vec3 r; float fd; float m = dotMask(vWPos, 1.25, 0.32, 0.17, r, fd); diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.03), m * uSpeckle * mix(0.35, 1.0, fd)); }
+#endif`)
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+ if (uLayers > 0.5) {
+   float ly = vWPos.y / uLayerH; float fw = fwidth(ly);
+   float fade = 1.0 - smoothstep(0.3, 0.85, fw);
+   float s = sin(fract(ly) * 6.2831853);
+   vec3 upV = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+   vec3 t = upV - normal * dot(upV, normal);
+   float side = 1.0 - abs(dot(upV, normal));
+   normal = normalize(normal + t * s * uLayerAmp * fade * side);
+ }`)
+      .replace('#include <opaque_fragment>', `
+#ifdef USE_FLAKES
+ { vec3 r; float fd; float m = dotMask(vWPos, uFlakeScale, uFlakeDensity, uFlakeSize, r, fd);
+   vec3 V = normalize(vViewPosition);
+   vec3 fn = normalize(normal + (r*2.0 - 1.0) * 0.85);
+   vec3 H = normalize(V + uKeyDir);
+   float sp = pow(max(dot(fn, H), 0.0), 60.0) * 5.0 + pow(max(dot(fn, V), 0.0), 10.0) * 0.18;
+   outgoingLight += uFlakeColor * m * sp * mix(0.15, 1.0, fd); }
+#endif
+#include <opaque_fragment>`);
+  };
+  mat.customProgramCacheKey = () => 'fil' + (opts.flakeDensity ? 'F' : '') + (opts.speckle ? 'S' : '');
+  return mat;
+}
+
+const finCache = new Map();
+function makeMaterial(fil, size) {
+  const c = new THREE.Color(fil.hex);
+  const fin = new Set(fil.fin); const tags = new Set(fil.tags);
+  const petg = fil.type === 'PETG';
+  const p = {
+    color: c, roughness: petg ? 0.26 : 0.42, metalness: 0, clearcoat: petg ? 0.45 : 0.12, clearcoatRoughness: petg ? 0.25 : 0.45,
+    ior: petg ? 1.57 : 1.46, specularIntensity: 1, sheen: 0, side: THREE.DoubleSide,
+  };
+  const o = {};
+  if (fin.has('mat')) Object.assign(p, { roughness: 0.82, clearcoat: 0, specularIntensity: 0.5 });
+  if (fin.has('carbone') || tags.has('abrasive')) Object.assign(p, { roughness: 0.74, clearcoat: 0, specularIntensity: 0.6 });
+  if (fin.has('moussé')) Object.assign(p, { roughness: 0.88, clearcoat: 0, specularIntensity: 0.4 });
+  if (fin.has('soie')) Object.assign(p, { roughness: 0.2, metalness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.12, sheen: 0.6, sheenRoughness: 0.35, sheenColor: c.clone().lerp(new THREE.Color(1, 1, 1), 0.5) });
+  if (fin.has('irisé')) Object.assign(p, { roughness: 0.3, metalness: 0.25, iridescence: 1, iridescenceIOR: 1.8, iridescenceThicknessRange: [260, 620], clearcoat: 0.5 });
+  if (fin.has('pailleté')) {
+    const gold = /gold|yellow/i.test(fil.name);
+    Object.assign(o, { flakeDensity: 0.55, flakeScale: 1.7, flakeSize: 0.15, flakeColor: new THREE.Color(1, 0.98, 0.95).lerp(c, gold ? 0.7 : 0.3) });
+  }
+  if (fin.has('marbré')) o.speckle = 0.9;
+  if (fin.has('transparent') || fin.has('translucide')) {
+    const clear = fin.has('transparent');
+    const td = fil.td || (clear ? 120 : 12);
+    Object.assign(p, {
+      transmission: clear ? 0.88 : 0.62, thickness: Math.min(Math.max(2, size * 0.04), 6), roughness: clear ? 0.2 : 0.3,
+      attenuationColor: c.clone(), attenuationDistance: Math.max(td, 4) * 3,
+      side: THREE.FrontSide, color: clear ? new THREE.Color(0.93, 0.95, 0.95) : c.clone(), clearcoat: 0.6, clearcoatRoughness: 0.15,
+      emissive: c.clone(), emissiveIntensity: clear ? 0.02 : 0.07,
+    });
+  }
+  if (fin.has('phosphorescent')) Object.assign(p, { emissive: new THREE.Color(0x8dffa0), emissiveIntensity: 0.06 });
+  const m = patchMaterial(new THREE.MeshPhysicalMaterial(p), o);
+  return m;
+}
+
+/* ---------- Modèle et emplacements de couleur ---------- */
+const DEFAULT_SLOT_FILS = ['pla-prusa-orange', 'pla-prusa-galaxy-black', 'pla-blend-oh-my-gold', 'pla-azure-blue', 'pla-lipstick-red', 'pla-opal-green', 'petg-mango-yellow', 'pla-galaxy-purple', 'pla-pristine-white', 'pla-chalky-blue'];
+let model = null;          // THREE.Group
+let parts = [];            // {name, slotDefault, meshes: [{slot, mesh}]}
+let slots = [];            // {n, fil, mat}
+let selSlot = 0;
+let modelSize = 100;
+
+function disposeModel() {
+  if (!model) return;
+  model.traverse(o => { if (o.isMesh) o.geometry.dispose(); });
+  scene.remove(model); model = null;
+  slots.forEach(s => s.mat.dispose());
+}
+
+function pickDefault(i) {
+  const pref = DEFAULT_SLOT_FILS.filter(id => inStock(id));
+  const pool = pref.length ? pref : DEFAULT_SLOT_FILS;
+  return pool[i % pool.length];
+}
+
+// rawParts: [{name, slot (part default), tris: Map(slot -> number[] positions)}]
+function buildModel(rawParts, { zUp = true, label = '', suggest = null } = {}) {
+  disposeModel();
+  model = new THREE.Group();
+  const inner = new THREE.Group(); if (zUp) inner.rotation.x = -Math.PI / 2; model.add(inner);
+  const usedSlots = new Set();
+  rawParts.forEach(rp => rp.tris.forEach((arr, s) => { if (arr.length) usedSlots.add(s); }));
+  const slotList = [...usedSlots].sort((a, b) => a - b);
+  // bbox pour la taille avant création des matériaux
+  const box = new THREE.Box3();
+  rawParts.forEach(rp => rp.tris.forEach(arr => { for (let i = 0; i < arr.length; i += 3) box.expandByPoint(new THREE.Vector3(arr[i], arr[i + 1], arr[i + 2])); }));
+  const sz = box.getSize(new THREE.Vector3()); modelSize = Math.max(sz.x, sz.y, sz.z) || 100;
+  slots = slotList.map((n, i) => {
+    let fil = suggest && suggest[n - 1] ? suggest[n - 1] : pickDefault(i);
+    return { n, fil, mat: makeMaterial(BY_ID[fil], modelSize) };
+  });
+  parts = rawParts.map(rp => {
+    const meshes = [];
+    rp.tris.forEach((arr, s) => {
+      if (!arr.length) return;
+      let g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(arr instanceof Float32Array ? arr : new Float32Array(arr), 3));
+      try { g = arr.length / 9 < 1.5e6 ? toCreasedNormals(g, THREE.MathUtils.degToRad(32)) : (g.computeVertexNormals(), g); } catch { g.computeVertexNormals(); }
+      const slot = slots.find(x => x.n === s);
+      const mesh = new THREE.Mesh(g, slot.mat); mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.userData.slot = s; inner.add(mesh); meshes.push({ slot: s, mesh });
+    });
+    return { name: rp.name, slot: rp.slot, meshes, painted: rp.tris.size > 1 };
+  });
+  scene.add(model);
+  // poser sur le plateau, centré
+  model.updateMatrixWorld(true);
+  const wb = new THREE.Box3().setFromObject(model);
+  const ctr = wb.getCenter(new THREE.Vector3());
+  model.position.set(-ctr.x, -wb.min.y, -ctr.z);
+  model.updateMatrixWorld(true);
+  const fb = new THREE.Box3().setFromObject(model); const s3 = fb.getSize(new THREE.Vector3());
+  $('dims').textContent = `${fmt(s3.x)} × ${fmt(s3.z)} × ${fmt(s3.y)} mm · ${countTris().toLocaleString(tx('locale'))} triangles`;
+  $('fileName').textContent = label;
+  selSlot = 0;
+  layoutScene(fb); fitCamera(fb); renderSlots(); renderParts(); renderList(); dirty = true;
+}
+const fmt = (v) => v.toLocaleString(tx('locale'), { maximumFractionDigits: 1 });
+const countTris = () => parts.reduce((a, p) => a + p.meshes.reduce((b, m) => b + m.mesh.geometry.attributes.position.count / 3, 0), 0);
+
+function layoutScene(b) {
+  const s = b.getSize(new THREE.Vector3()); const r = Math.max(s.x, s.y, s.z);
+  const c = b.getCenter(new THREE.Vector3());
+  ground.scale.set(r * 40, r * 40, 1); ground.position.y = 0;
+  bed.scale.set(Math.max(250, s.x * 1.35), 1.2, Math.max(210, s.z * 1.35)); bed.position.set(0, -0.61, 0);
+  bedTex.repeat.set(bed.scale.x / 120, bed.scale.z / 120);
+  const kd = new THREE.Vector3(-0.55, 1.0, 0.65).normalize();
+  key.position.copy(c).addScaledVector(kd, r * 3); key.target.position.copy(c);
+  const sc = key.shadow.camera; const e = Math.max(r * 0.9, 60);
+  sc.left = -e; sc.right = e; sc.top = e; sc.bottom = -e; sc.near = r * 0.5; sc.far = r * 6; sc.updateProjectionMatrix();
+  key.shadow.normalBias = r * 0.0015;
+  rim.position.copy(c).add(new THREE.Vector3(0.8, 0.5, -1).normalize().multiplyScalar(r * 3)); rim.target.position.copy(c);
+  if (gtao) gtao.updateGtaoMaterial({ radius: r * 0.06, distanceExponent: 1.5, thickness: r * 0.02, scale: 1.0, samples: 16 });
+}
+function fitCamera(b) {
+  const sph = b.getBoundingSphere(new THREE.Sphere());
+  const d = sph.radius / Math.sin(THREE.MathUtils.degToRad(camera.fov / 2)) * 1.08;
+  const dir = new THREE.Vector3(0.75, 0.55, 1).normalize();
+  camera.position.copy(sph.center).addScaledVector(dir, d);
+  camera.near = Math.max(0.05, d / 200); camera.far = d * 30; camera.updateProjectionMatrix();
+  controls.target.copy(sph.center); controls.maxDistance = d * 6; controls.minDistance = sph.radius * 0.15; controls.update();
+}
+
+function setSlotFil(i, id) {
+  const s = slots[i]; if (!s) return;
+  s.fil = id; const old = s.mat; s.mat = makeMaterial(BY_ID[id], modelSize);
+  parts.forEach(p => p.meshes.forEach(m => { if (m.slot === s.n) m.mesh.material = s.mat; }));
+  old.dispose(); renderSlots(); renderList(); dirty = true;
+}
+
+/* ---------- Lecture STL ---------- */
+function stlToTris(buf) {
+  const g = new STLLoader().parse(buf);
+  const pos = g.index ? g.toNonIndexed().attributes.position.array : g.attributes.position.array;
+  return new Float32Array(pos);
+}
+
+/* ---------- Lecture 3MF (PrusaSlicer, Orca/Bambu, générique) ---------- */
+const UNIT = { micron: 0.001, millimeter: 1, centimeter: 10, inch: 25.4, foot: 304.8, meter: 1000 };
+function attrs(s) { const o = {}; for (const m of s.matchAll(/([\w:.-]+)\s*=\s*"([^"]*)"/g)) o[m[1]] = m[2]; return o; }
+function decodeXml(s) { return s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'); }
+function mat3mf(str) {
+  const m = new THREE.Matrix4(); if (!str) return m;
+  const v = str.trim().split(/\s+/).map(Number); if (v.length !== 12) return m;
+  m.set(v[0], v[3], v[6], v[9], v[1], v[4], v[7], v[10], v[2], v[5], v[8], v[11], 0, 0, 0, 1); return m;
+}
+function parseModel(xml) {
+  const head = xml.slice(0, 4000); const mu = /<model\b[^>]*\bunit="(\w+)"/.exec(head);
+  const unit = UNIT[mu ? mu[1] : 'millimeter'] || 1;
+  const objects = new Map();
+  const objRe = /<object\b([^>]*)>([\s\S]*?)<\/object>/g; let om;
+  while ((om = objRe.exec(xml))) {
+    const a = attrs(om[1]); const body = om[2];
+    const obj = { id: a.id, name: a.name ? decodeXml(a.name) : '', type: a.type || 'model', mesh: null, comps: [] };
+    const vi = body.indexOf('<vertices');
+    if (vi >= 0) {
+      const ve = body.indexOf('</vertices>', vi); const vs = body.slice(vi, ve);
+      const verts = []; for (const m of vs.matchAll(/<vertex\b([^>]*)\/?>/g)) { const t = m[1];
+        verts.push(+(/\bx="([^"]+)"/.exec(t)[1]) * unit, +(/\by="([^"]+)"/.exec(t)[1]) * unit, +(/\bz="([^"]+)"/.exec(t)[1]) * unit); }
+      const ti = body.indexOf('<triangles'); const te = body.indexOf('</triangles>', ti); const ts = body.slice(ti, te);
+      const idx = []; const paint = []; let anyPaint = false;
+      for (const m of ts.matchAll(/<triangle\b([^>]*)\/?>/g)) { const t = m[1];
+        idx.push(+/\bv1="(\d+)"/.exec(t)[1], +/\bv2="(\d+)"/.exec(t)[1], +/\bv3="(\d+)"/.exec(t)[1]);
+        const p = /(?:mmu_segmentation|paint_color)="([0-9A-Fa-f]+)"/.exec(t); paint.push(p ? p[1] : null); if (p) anyPaint = true; }
+      obj.mesh = { verts: new Float32Array(verts), idx: new Uint32Array(idx), paint: anyPaint ? paint : null };
+    }
+    for (const m of body.matchAll(/<component\b([^>]*)\/?>/g)) { const c = attrs(m[1]); obj.comps.push({ id: c.objectid, path: c['p:path'] || null, t: mat3mf(c.transform) }); }
+    objects.set(a.id, obj);
+  }
+  const items = []; const b = /<build\b[^>]*>([\s\S]*?)<\/build>/.exec(xml);
+  if (b) for (const m of b[1].matchAll(/<item\b([^>]*)\/?>/g)) { const c = attrs(m[1]); if (c.printable === '0') continue; items.push({ id: c.objectid, path: c['p:path'] || null, t: mat3mf(c.transform) }); }
+  return { objects, items };
+}
+
+// Décodage de la peinture multimatière (format TriangleSelector de PrusaSlicer / Orca)
+function decodePaint(hex, a, b, c, base, out) {
+  const nib = []; for (let i = hex.length - 1; i >= 0; i--) nib.push(parseInt(hex[i], 16));
+  let k = 0; const next = () => (k < nib.length ? nib[k++] : 0);
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+  const emit = (p, q, r, st) => { const s = st > 0 ? st : base; let arr = out.get(s); if (!arr) out.set(s, arr = []); arr.push(...p, ...q, ...r); };
+  const rec = (v, depth) => {
+    if (depth > 24) return;
+    const code = next(); const sides = code & 3;
+    if (sides === 0) { let st = code >> 2; if ((code & 12) === 12) { const n = next(); st = n === 15 ? next() + 18 : n + 3; } emit(v[0], v[1], v[2], st); return; }
+    const sp = sides === 3 ? 0 : code >> 2;
+    const V = [v[sp % 3], v[(sp + 1) % 3], v[(sp + 2) % 3]];
+    let ch;
+    if (sides === 1) { const L = [V[0], V[1], mid(V[2], V[1]), V[2]]; ch = [[L[0], L[1], L[2]], [L[2], L[3], L[0]]]; }
+    else if (sides === 2) { const L = [V[0], mid(V[1], V[0]), V[1], V[2]]; L.push(mid(L[0], L[3])); ch = [[L[0], L[1], L[4]], [L[1], L[2], L[4]], [L[2], L[3], L[4]]]; }
+    else { const L = [V[0], mid(V[0], V[1]), V[1], mid(V[1], V[2]), V[2], mid(V[2], V[0])]; ch = [[L[0], L[1], L[5]], [L[1], L[2], L[3]], [L[3], L[4], L[5]], [L[1], L[3], L[5]]]; }
+    for (let i = ch.length - 1; i >= 0; i--) rec(ch[i], depth + 1);
+  };
+  rec([a, b, c], 0);
+}
+
+function readConfigs(get) {
+  const res = { prusa: new Map(), bambu: new Map(), colors: null };
+  const pc = get('Metadata/Slic3r_PE_model.config');
+  if (pc) for (const om of pc.matchAll(/<object\b([^>]*)>([\s\S]*?)<\/object>/g)) {
+    const oa = attrs(om[1]); const ob = om[2];
+    const meta = (s, type) => { const o = {}; for (const m of s.matchAll(new RegExp(`<metadata\\b[^>]*type="${type}"[^>]*/?>`, 'g'))) { const a = attrs(m[0]); o[a.key] = decodeXml(a.value || ''); } return o; };
+    const objMeta = meta(ob.replace(/<volume\b[\s\S]*?<\/volume>/g, ''), 'object');
+    const vols = []; for (const vm of ob.matchAll(/<volume\b([^>]*)>([\s\S]*?)<\/volume>/g)) { const va = attrs(vm[1]); const md = meta(vm[2], 'volume');
+      vols.push({ first: +va.firstid, last: +va.lastid, name: md.name || '', extruder: +(md.extruder || 0), type: md.volume_type || (md.modifier === '1' ? 'ParameterModifier' : 'ModelPart') }); }
+    res.prusa.set(oa.id, { name: objMeta.name, extruder: +(objMeta.extruder || 0), vols });
+  }
+  const bc = get('Metadata/model_settings.config');
+  if (bc) for (const om of bc.matchAll(/<object\b([^>]*)>([\s\S]*?)<\/object>/g)) {
+    const oa = attrs(om[1]); const ob = om[2];
+    const kv = (s) => { const o = {}; for (const m of s.matchAll(/<metadata\b([^>]*)\/?>/g)) { const a = attrs(m[1]); if (a.key) o[a.key] = decodeXml(a.value || ''); } return o; };
+    const objMeta = kv(ob.replace(/<part\b[\s\S]*?<\/part>/g, ''));
+    const partsM = new Map(); for (const pm of ob.matchAll(/<part\b([^>]*)>([\s\S]*?)<\/part>/g)) { const pa = attrs(pm[1]); const md = kv(pm[2]); partsM.set(pa.id, { name: md.name || '', extruder: +(md.extruder || 0), subtype: pa.subtype || 'normal_part' }); }
+    res.bambu.set(oa.id, { name: objMeta.name, extruder: +(objMeta.extruder || 0), parts: partsM });
+  }
+  const ps = get('Metadata/Slic3r_PE.config');
+  if (ps) { const m = /;\s*(?:filament_colour|extruder_colour)\s*=\s*([^\n]+)/.exec(ps); if (m) res.colors = m[1].split(';').map(s => s.trim()); }
+  const bs = get('Metadata/project_settings.config');
+  if (bs && !res.colors) { try { const j = JSON.parse(bs); if (Array.isArray(j.filament_colour)) res.colors = j.filament_colour; } catch {} }
+  return res;
+}
+
+function parse3MF(buf) {
+  const files = unzipSync(new Uint8Array(buf));
+  const keys = Object.keys(files); const td = new TextDecoder();
+  const get = (p) => { p = p.replace(/^\//, '').toLowerCase(); const k = keys.find(k => k.toLowerCase() === p); return k ? td.decode(files[k]) : null; };
+  let root = '3D/3dmodel.model';
+  const rels = get('_rels/.rels');
+  if (rels) for (const m of rels.matchAll(/<Relationship\b([^>]*)\/?>/g)) { const a = attrs(m[1]); if (/3dmodel$/.test(a.Type || '')) root = a.Target.replace(/^\//, ''); }
+  const docs = new Map(); const doc = (p) => { if (!docs.has(p)) { const x = get(p); docs.set(p, x ? parseModel(x) : { objects: new Map(), items: [] }); } return docs.get(p); };
+  const rootDoc = doc(root);
+  const cfg = readConfigs(get);
+  const out = []; const v = new THREE.Vector3();
+  const pt = (verts, i, M) => { v.set(verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2]).applyMatrix4(M); return [v.x, v.y, v.z]; };
+
+  const emitMesh = (obj, M, baseExtr, name, ranges) => {
+    const { verts, idx, paint } = obj.mesh; const nt = idx.length / 3;
+    const segs = ranges && ranges.length ? ranges : [{ first: 0, last: nt - 1, name, extruder: 0, type: 'ModelPart' }];
+    for (const r of segs) {
+      if (r.type && r.type !== 'ModelPart') continue;
+      const base = r.extruder || baseExtr || 1;
+      const tris = new Map();
+      for (let t = Math.max(0, r.first); t <= Math.min(nt - 1, r.last); t++) {
+        const a = pt(verts, idx[t * 3], M), b = pt(verts, idx[t * 3 + 1], M), c = pt(verts, idx[t * 3 + 2], M);
+        if (paint && paint[t]) decodePaint(paint[t], a, b, c, base, tris);
+        else { let arr = tris.get(base); if (!arr) tris.set(base, arr = []); arr.push(...a, ...b, ...c); }
+      }
+      out.push({ name: r.name || name || '', slot: base, tris });
+    }
+  };
+  const walk = (d, id, M, ctx, depth) => {
+    if (depth > 16) return; const obj = d.objects.get(id); if (!obj) return;
+    if (obj.type && obj.type !== 'model' && obj.type !== 'solidsupport' && obj.type !== 'other') return;
+    if (obj.mesh) {
+      const pc = cfg.prusa.get(id);
+      emitMesh(obj, M, ctx.extr || (pc && pc.extruder) || 0, ctx.name || (pc && pc.name) || obj.name, pc ? pc.vols : null);
+    }
+    for (const c of obj.comps) {
+      const bp = ctx.bambu && ctx.bambu.parts.get(c.id);
+      if (bp && bp.subtype !== 'normal_part') continue;
+      const d2 = c.path ? doc(c.path.replace(/^\//, '')) : d;
+      const sub = d2.objects.get(c.id);
+      walk(d2, c.id, M.clone().multiply(c.t), { extr: (bp && bp.extruder) || ctx.extr, name: (bp && bp.name) || (sub && sub.name) || ctx.name, bambu: null }, depth + 1);
+    }
+  };
+  const items = rootDoc.items.length ? rootDoc.items : [...rootDoc.objects.keys()].map(id => ({ id, t: new THREE.Matrix4() }));
+  for (const it of items) {
+    const d = it.path ? doc(it.path.replace(/^\//, '')) : rootDoc;
+    const bo = cfg.bambu.get(it.id); const o = d.objects.get(it.id);
+    walk(d, it.id, it.t.clone(), { extr: bo ? bo.extruder : 0, name: (bo && bo.name) || (o && o.name) || '', bambu: bo || null }, 0);
+  }
+  return { parts: out.filter(p => p.tris.size), colors: cfg.colors };
+}
+
+/* Rapprochement couleur projet → filament du catalogue (ΔE Lab) */
+function toLab(hex) {
+  const c = new THREE.Color(hex); const lin = [c.r, c.g, c.b];
+  const X = (0.4124 * lin[0] + 0.3576 * lin[1] + 0.1805 * lin[2]) / 0.95047, Y = 0.2126 * lin[0] + 0.7152 * lin[1] + 0.0722 * lin[2], Z = (0.0193 * lin[0] + 0.1192 * lin[1] + 0.9505 * lin[2]) / 1.08883;
+  const f = t => t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116;
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+}
+const LAB = Object.fromEntries(CAT.map(f => [f.id, toLab(f.hex)]));
+function nearestFil(hex) {
+  if (!/^#?[0-9a-f]{6}/i.test(hex || '')) return null;
+  const l = toLab(hex.startsWith('#') ? hex.slice(0, 7) : '#' + hex.slice(0, 6));
+  const pool = CAT.filter(f => inStock(f.id)); const list = pool.length ? pool : CAT;
+  let best = null, bd = 1e9; for (const f of list) { const m = LAB[f.id]; const d = (m[0] - l[0]) ** 2 + (m[1] - l[1]) ** 2 + (m[2] - l[2]) ** 2 + (f.fin.length ? 200 : 0); if (d < bd) { bd = d; best = f.id; } }
+  return best;
+}
+
+/* ---------- Chargement de fichiers ---------- */
+let source = { type: 'sample' }; // d'où vient le modèle affiché
+async function loadFiles(fileList) {
+  const files = [...fileList].filter(f => /\.(stl|3mf)$/i.test(f.name));
+  if (!files.length) { toast(tx('formats')); return; }
+  const bufs = []; for (const f of files) bufs.push({ name: f.name, buf: await f.arrayBuffer() });
+  const ok = await loadBuffers(bufs);
+  if (ok) { source = { type: 'local', files: bufs }; setModelParam(null); }
+}
+async function loadBuffers(files, { quiet = false } = {}) {
+  $('loading').hidden = false; await new Promise(r => setTimeout(r, 30));
+  try {
+    const raw = []; let suggest = null; let slotBase = 0;
+    for (const f of files) {
+      const buf = f.buf;
+      if (/\.3mf$/i.test(f.name)) {
+        const r = parse3MF(buf);
+        if (!r.parts.length) throw uerr(tx('errNoMesh', f.name));
+        // un 3MF sans affectation d'extrudeur : une couleur par objet
+        const allOne = r.parts.every(p => p.slot === 1 && [...p.tris.keys()].every(k => k === 1));
+        if (allOne && r.parts.length > 1) r.parts.forEach((p, i) => { const arr = p.tris.get(1); p.tris = new Map([[slotBase + i + 1, arr]]); p.slot = slotBase + i + 1; });
+        else if (slotBase) r.parts.forEach(p => { p.slot += slotBase; p.tris = new Map([...p.tris].map(([k, v]) => [k + slotBase, v])); });
+        if (r.colors && !allOne) suggest = r.colors.map(nearestFil);
+        raw.push(...r.parts);
+      } else {
+        const tris = stlToTris(buf);
+        raw.push({ name: f.name.replace(/\.stl$/i, ''), slot: slotBase + 1, tris: new Map([[slotBase + 1, tris]]) });
+      }
+      slotBase = Math.max(0, ...raw.flatMap(p => [...p.tris.keys()]));
+    }
+    buildModel(raw, { zUp: true, label: files.map(f => f.name).join(', '), suggest });
+    if (!quiet) toast(suggest ? tx('projColors') : tx('toChoose', slots.length));
+    return true;
+  } catch (e) { console.error(e); toast(e.userMsg ? e.message : tx('errRead')); return false; }
+  finally { $('loading').hidden = true; }
+}
+
+/* ---------- Modèle d'exemple ---------- */
+function sampleModel() {
+  const parts = [];
+  const H = 118, layers = 160, seg = 180, twist = Math.PI * 0.6, base = 9;
+  const R = (z) => { const t = z / H; return 30 + 16 * Math.sin(Math.PI * (0.15 + 0.75 * t)) - 6 * t; };
+  const ring = (z) => { const pts = []; const tw = twist * (z / H); for (let i = 0; i < seg; i++) { const a = (i / seg) * Math.PI * 2; const r = R(z) * (1 + 0.075 * Math.cos(7 * a)); pts.push([Math.cos(a + tw) * r, z + base, Math.sin(a + tw) * r]); } return pts; };
+  const vase = []; let prev = ring(0);
+  const capR = []; for (let l = 1; l <= layers; l++) { const cur = ring((l / layers) * H);
+    for (let i = 0; i < seg; i++) { const j = (i + 1) % seg; vase.push(...prev[i], ...cur[i], ...cur[j], ...prev[i], ...cur[j], ...prev[j]); } prev = cur; }
+  const top = prev; const cz = H + base; for (let i = 0; i < seg; i++) { const j = (i + 1) % seg; vase.push(...top[i], 0, cz, 0, ...top[j]); }
+  const b0 = ring(0); for (let i = 0; i < seg; i++) { const j = (i + 1) % seg; vase.push(...b0[j], 0, base, 0, ...b0[i]); }
+  parts.push({ name: tx('sampleParts')[0], slot: 1, tris: new Map([[1, vase]]) });
+  // socle
+  const cyl = new THREE.CylinderGeometry(50, 52, base, 160, 1).toNonIndexed(); cyl.translate(0, base / 2, 0);
+  parts.push({ name: tx('sampleParts')[1], slot: 2, tris: new Map([[2, [...cyl.attributes.position.array]]]) });
+  // bouton
+  const sph = new THREE.SphereGeometry(11, 64, 40, 0, Math.PI * 2, 0, Math.PI * 0.62).toNonIndexed(); sph.translate(0, cz + 4, 0);
+  parts.push({ name: tx('sampleParts')[2], slot: 3, tris: new Map([[3, [...sph.attributes.position.array]]]) });
+  buildModel(parts, { zUp: false, label: tx('samplePiece'), suggest: ['pla-prusa-orange', 'pla-prusa-galaxy-black', 'pla-blend-oh-my-gold'] });
+}
+
+/* ---------- Interface ---------- */
+const famOrder = ['PLA', 'PLA Blend (soie)', 'PLA Premium', 'PLA CMYK / ColorMix', 'PLA High Speed', 'PLA Lightweight', 'rPLA', 'PLA recyclé', 'PLA édition limitée', 'PETG', 'PETG technique', 'PETG recyclé'];
+let fType = 'all', fQ = '', fStock = false;
+const swClass = (f) => f.fin.includes('transparent') || f.fin.includes('translucide') ? 'f-trans' : f.fin.includes('soie') ? 'f-silk' : f.fin.includes('pailleté') ? 'f-glitter' : f.fin.includes('irisé') ? 'f-irid' : f.fin.includes('marbré') ? 'f-marble' : f.fin.includes('mat') ? 'f-matte' : '';
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const label = (f) => `${f.type === 'PETG' ? 'PETG' : 'PLA'} ${f.name}`;
+
+function renderSlots() {
+  const el = $('slots');
+  el.innerHTML = slots.map((s, i) => { const f = BY_ID[s.fil]; const n = parts.filter(p => p.meshes.some(m => m.slot === s.n)).length;
+    return `<button type="button" class="slot" aria-pressed="${i === selSlot}" data-i="${i}">
+      <span class="sw ${swClass(f)}" style="--c:${f.hex};background-color:${swClass(f) === 'f-trans' ? '' : f.hex};height:34px;border-radius:7px;display:block;overflow:hidden"></span>
+      <div><div class="nm">${esc(label(f))}</div><div class="meta"><span class="num">${tx('color')} ${s.n}</span> · ${tx('pieces', n)}${f.fin.length ? ' · ' + finNames(f.fin).join(', ') : ''}</div></div>
+      ${inStock(f.id) ? '' : `<span class="badge">${tx('notInStock')}</span>`}</button>`; }).join('');
+  $('slotCount').textContent = slots.length ? `(${slots.length})` : '';
+  el.querySelectorAll('.slot').forEach(b => b.onclick = () => { selectSlot(+b.dataset.i); });
+}
+function selectSlot(i) { selSlot = i; renderSlots(); renderList(); flash(i); }
+function renderParts() {
+  const box = $('partsBox');
+  if (parts.length < 2) { box.hidden = true; return; }
+  box.hidden = false; $('partsSum').textContent = tx('partsSum', parts.length);
+  const opts = (cur) => { const n = Math.max(slots.length + 1, ...slots.map(s => s.n + 1)); let h = ''; for (let k = 1; k <= Math.min(n, 16); k++) h += `<option value="${k}" ${k === cur ? 'selected' : ''}>${tx('color')} ${k}</option>`; return h; };
+  $('parts').innerHTML = parts.map((p, i) => `<div class="partrow"><span title="${esc(p.name)}">${esc(p.name || tx('part') + ' ' + (i + 1))}</span>${p.painted ? `<em style="font-size:11px;color:var(--muted)">${tx('painted')}</em>` : `<select data-i="${i}" aria-label="${esc(tx('colorOf', p.name))}">${opts(p.meshes[0].slot)}</select>`}</div>`).join('');
+  $('parts').querySelectorAll('select').forEach(sel => sel.onchange = () => reassignPart(+sel.dataset.i, +sel.value));
+}
+function reassignPart(i, n) {
+  const p = parts[i]; let s = slots.find(x => x.n === n);
+  if (!s) { s = { n, fil: pickDefault(slots.length), mat: null }; s.mat = makeMaterial(BY_ID[s.fil], modelSize); slots.push(s); slots.sort((a, b) => a.n - b.n); }
+  p.meshes.forEach(m => { m.slot = n; m.mesh.userData.slot = n; m.mesh.material = s.mat; });
+  // retirer les couleurs devenues inutilisées
+  const used = new Set(parts.flatMap(q => q.meshes.map(m => m.slot)));
+  slots.filter(x => !used.has(x.n)).forEach(x => x.mat.dispose());
+  slots = slots.filter(x => used.has(x.n)); selSlot = Math.max(0, slots.findIndex(x => x.n === n));
+  renderSlots(); renderParts(); renderList(); dirty = true;
+}
+function renderList() {
+  const q = fQ.trim().toLowerCase();
+  const cur = slots[selSlot] && slots[selSlot].fil;
+  const items = CAT.filter(f => (fType === 'all' || f.type === fType) && (!fStock || inStock(f.id)) &&
+    (!q || (label(f) + ' ' + f.fam + ' ' + famName(f.fam) + ' ' + f.fin.join(' ') + ' ' + finNames(f.fin).join(' ') + ' ' + f.hex).toLowerCase().includes(q)));
+  const groups = famOrder.map(fam => [fam, items.filter(f => f.fam === fam)]).filter(([, a]) => a.length);
+  $('list').innerHTML = groups.length ? groups.map(([fam, arr]) => `<div class="fam"><h3><span>${esc(famName(fam))} · ${arr.length}</span><button type="button" data-fam="${esc(fam)}">${arr.every(f => inStock(f.id)) ? tx('removeAll') : tx('allInStock')}</button></h3><div class="grid">${arr.map(f => `
+    <button type="button" class="fil ${inStock(f.id) ? '' : 'off'} ${f.id === cur ? 'cur' : ''}" data-id="${f.id}" title="${esc(label(f))}${f.fin.length ? ' · ' + finNames(f.fin).join(', ') : ''}">
+      <span class="sw ${swClass(f)}" style="--c:${f.hex};${swClass(f) === 'f-trans' ? '' : 'background:' + f.hex}"></span>
+      <span class="tx"><span class="n">${esc(f.name)}</span><span class="s">${f.hex.toUpperCase()}${f.fin.length ? ' · ' + finNames(f.fin).join(' ') : ''}</span></span>
+      <span class="stock" role="checkbox" aria-checked="${inStock(f.id)}" aria-label="${tx('inStock')}" data-stock="${f.id}" tabindex="0"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17l9-10"/></svg></span>
+    </button>`).join('')}</div></div>`).join('') : `<p class="empty">${tx('noMatch')}</p>`;
+  const n = CAT.filter(f => inStock(f.id)).length; $('stockCount').textContent = tx('stockCount', n, CAT.length);
+}
+$('list').addEventListener('click', (e) => {
+  const st = e.target.closest('[data-stock]');
+  if (st) { e.stopPropagation(); const id = st.dataset.stock; stock[id] = !inStock(id); if (!stock[id]) delete stock[id]; saveStock(); renderList(); renderSlots(); return; }
+  const fb = e.target.closest('[data-fam]');
+  if (fb) { const arr = CAT.filter(f => f.fam === fb.dataset.fam); const all = arr.every(f => inStock(f.id)); arr.forEach(f => { if (all) delete stock[f.id]; else stock[f.id] = true; }); saveStock(); renderList(); renderSlots(); return; }
+  const card = e.target.closest('.fil'); if (!card) return;
+  if (!slots.length) return;
+  setSlotFil(selSlot, card.dataset.id);
+  toast(tx('applied', slots[selSlot].n, label(BY_ID[card.dataset.id]), inStock(card.dataset.id)));
+});
+$('list').addEventListener('keydown', (e) => { const st = e.target.closest('[data-stock]'); if (st && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); st.click(); } });
+$('q').oninput = (e) => { fQ = e.target.value; renderList(); };
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { fType = b.dataset.t; document.querySelectorAll('.seg button').forEach(x => x.setAttribute('aria-pressed', x === b)); renderList(); });
+$('onlyStock').onchange = (e) => { fStock = e.target.checked; renderList(); };
+$('ioBtn').onclick = () => { $('io').hidden = false; $('ioText').value = JSON.stringify(Object.keys(stock).sort()); $('ioText').select(); try { navigator.clipboard.writeText($('ioText').value).then(() => toast(tx('listCopied')), () => {}); } catch {} };
+$('ioClose').onclick = () => { $('io').hidden = true; };
+$('ioImport').onclick = () => { try { const arr = JSON.parse($('ioText').value); if (!Array.isArray(arr)) throw 0; stock = {}; arr.forEach(id => { if (BY_ID[id]) stock[id] = true; }); saveStock(); renderList(); renderSlots(); toast(tx('imported', Object.keys(stock).length)); $('io').hidden = true; } catch { toast(tx('badList')); } };
+
+let toastT; function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2600); }
+
+// Fichiers
+$('openBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = (e) => { if (e.target.files.length) loadFiles(e.target.files); e.target.value = ''; };
+$('sampleBtn').onclick = () => { sampleModel(); source = { type: 'sample' }; setModelParam(null); };
+let dragN = 0;
+stage.addEventListener('dragenter', (e) => { e.preventDefault(); dragN++; $('drop').hidden = false; });
+stage.addEventListener('dragover', (e) => e.preventDefault());
+stage.addEventListener('dragleave', () => { if (--dragN <= 0) { dragN = 0; $('drop').hidden = true; } });
+stage.addEventListener('drop', (e) => { e.preventDefault(); dragN = 0; $('drop').hidden = true; if (e.dataTransfer.files.length) loadFiles(e.dataTransfer.files); });
+document.addEventListener('dragover', e => e.preventDefault()); document.addEventListener('drop', e => e.preventDefault());
+
+// Options de rendu
+const pressed = (b, v) => b.setAttribute('aria-pressed', v);
+$('tLayers').onclick = (e) => { shared.uLayers.value = shared.uLayers.value ? 0 : 1; pressed(e.currentTarget, !!shared.uLayers.value); dirty = true; };
+$('layerH').onchange = (e) => { shared.uLayerH.value = +e.target.value; dirty = true; };
+$('tAO').onclick = (e) => { useAO = !useAO; pressed(e.currentTarget, useAO); dirty = true; };
+$('tRotate').onclick = (e) => { controls.autoRotate = !controls.autoRotate; pressed(e.currentTarget, controls.autoRotate); };
+$('tFit').onclick = () => { if (model) fitCamera(new THREE.Box3().setFromObject(model)); dirty = true; };
+const mq = matchMedia('(prefers-color-scheme: dark)');
+function isDark() { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : mq.matches; }
+function applyBg() {
+  const v = $('bgSel').value; const mode = v === 'auto' ? (isDark() ? 'dark' : 'light') : v;
+  bed.visible = mode === 'bed';
+  scene.background = mode === 'light' ? BG.light : BG.dark;
+  ground.material.opacity = mode === 'light' ? 0.26 : 0.5;
+  hemi.groundColor.set(mode === 'light' ? 0x9aa0a8 : 0x3a3d42);
+  dirty = true;
+}
+$('bgSel').onchange = applyBg; mq.addEventListener('change', applyBg);
+new MutationObserver(applyBg).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+// Sélection au clic dans la vue
+const ray = new THREE.Raycaster(); let down = null;
+canvas.addEventListener('pointerdown', (e) => { down = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 4 || !model) return;
+  const r = canvas.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  const hit = ray.intersectObject(model, true)[0];
+  if (hit) { const i = slots.findIndex(s => s.n === hit.object.userData.slot); if (i >= 0) selectSlot(i); }
+});
+let flashT = 0, flashSlot = -1;
+function flash(i) { flashSlot = i; flashT = performance.now(); dirty = true; }
+
+// Boucle de rendu (à la demande)
+let dirty = true;
+controls.addEventListener('change', () => dirty = true);
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight; if (!w || !h) return;
+  renderer.setSize(w, h, false); composer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); dirty = true;
+}
+new ResizeObserver(resize).observe(stage);
+const tmpV = new THREE.Vector3();
+function tick(now) {
+  requestAnimationFrame(tick);
+  controls.update();
+  if (flashSlot >= 0) {
+    const k = Math.max(0, 1 - (now - flashT) / 600); const s = slots[flashSlot];
+    if (s) { s.mat.emissive.set(0x4fc3cf); s.mat.emissiveIntensity = 0.35 * k; }
+    if (k <= 0) { if (s) { const f = BY_ID[s.fil]; const base = makeMaterial(f, modelSize); s.mat.emissive.copy(base.emissive); s.mat.emissiveIntensity = base.emissiveIntensity; base.dispose(); } flashSlot = -1; }
+    dirty = true;
+  }
+  if (!dirty && !controls.autoRotate) return;
+  dirty = false;
+  tmpV.copy(key.position).sub(key.target.position).normalize().transformDirection(camera.matrixWorldInverse);
+  shared.uKeyDir.value.copy(tmpV);
+  if (useAO && gtao) { gtao.enabled = true; composer.render(); }
+  else if (gtao) { gtao.enabled = false; composer.render(); }
+  else composer.render();
+}
+applyBg(); resize();
+requestAnimationFrame(tick);
+/* ---------- Partage : lien ami et lien de réponse ---------- */
+const b64u = {
+  enc(u8) { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); },
+  dec(str) { const s = atob(str.replace(/-/g, '+').replace(/_/g, '/')); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; },
+};
+const packObj = (o) => b64u.enc(deflateSync(strToU8(JSON.stringify(o)), { level: 9 }));
+const unpackObj = (s) => JSON.parse(strFromU8(inflateSync(b64u.dec(s))));
+const INLINE_MAX = 48 * 1024; // au-delà, le lien devient trop long pour une messagerie
+
+// Hébergé (GitHub Pages, Netlify…) : les liens fonctionnent. Dans claude.ai, la page est dans un cadre isolé.
+const HOSTED = /^https?:$/.test(location.protocol) && !/claude|anthropic|usercontent/i.test(location.hostname) && window.top === window;
+const baseURL = () => location.origin + location.pathname;
+const GH = (() => { const h = location.hostname; if (!h.endsWith('.github.io')) return null; const owner = h.split('.')[0]; const seg = location.pathname.split('/').filter(Boolean)[0]; return { owner, repo: seg || h }; })();
+
+function setModelParam(path) {
+  if (!HOSTED) return;
+  const u = new URL(location.href); if (path) u.searchParams.set('m', path); else u.searchParams.delete('m'); u.hash = '';
+  history.replaceState(null, '', u);
+}
+function currentState() {
+  return {
+    c: slots.map(s => [s.n, s.fil]),
+    ps: parts.map(p => (p.painted ? 0 : p.meshes[0].slot)),
+  };
+}
+function applyState(st) {
+  if (!st) return;
+  if (Array.isArray(st.ps) && st.ps.length === parts.length) st.ps.forEach((n, i) => { if (n && !parts[i].painted && parts[i].meshes[0].slot !== n) reassignPart(i, n); });
+  if (Array.isArray(st.c)) st.c.forEach(([n, id]) => { const i = slots.findIndex(s => s.n === n); if (i >= 0 && BY_ID[id]) setSlotFil(i, id); });
+}
+
+async function makeShareLink(kind, extra) {
+  const o = { v: 1, k: kind, f: $('fileName').textContent, ...currentState(), ...extra };
+  if (source.type === 'repo') o.m = source.path;
+  else if (source.type === 'sample') o.m = ':sample';
+  else if (source.type === 'local' || source.type === 'inline') {
+    const files = source.files; const zipped = files.map(f => ({ n: f.name, d: b64u.enc(deflateSync(new Uint8Array(f.buf), { level: 9 })) }));
+    const size = zipped.reduce((a, z) => a + z.d.length, 0);
+    if (size > INLINE_MAX * 1.37) return { error: size };
+    o.e = zipped;
+  }
+  return { url: baseURL() + '#' + kind + '=' + packObj(o) };
+}
+
+async function copyText(el, okMsg) {
+  el.select();
+  try { await navigator.clipboard.writeText(el.value); toast(okMsg); } catch { toast(tx('selectCopy')); }
+}
+
+// Côté imprimeur : créer le lien ami
+$('shareBtn').onclick = () => {
+  $('shareBox').hidden = false; $('shareOut').hidden = true;
+  $('shareInfo').textContent = !HOSTED ? tx('notHosted') : tx('shareInfo', CAT.filter(f => inStock(f.id)).length);
+  $('shareMake').disabled = !HOSTED;
+  $('shareBox').scrollIntoView({ block: 'nearest' });
+};
+$('shareClose').onclick = () => { $('shareBox').hidden = true; };
+$('shareMake').onclick = async () => {
+  const r = await makeShareLink('a', { s: CAT.filter(f => inStock(f.id)).map(f => f.id), t: $('shareNote').value.trim() });
+  if (r.error) {
+    $('shareOut').hidden = true;
+    $('shareInfo').textContent = tx('tooBig', Math.round(r.error / 1024));
+    return;
+  }
+  $('shareOut').hidden = false; $('shareLink').value = r.url;
+  $('shareSize').textContent = r.url.length > 4000 ? tx('longLink', Math.round(r.url.length / 1024)) : '';
+  copyText($('shareLink'), tx('linkCopiedFriend'));
+};
+$('shareCopy').onclick = () => copyText($('shareLink'), tx('linkCopied'));
+
+// Côté ami : renvoyer son choix
+$('sendBtn').onclick = async () => {
+  const who = $('who').value.trim();
+  if (!who) { $('who').focus(); toast(tx('needName')); return; }
+  const r = await makeShareLink('r', { w: who });
+  if (r.error) { toast(tx('replyTooBig')); return; }
+  $('replyOut').hidden = false; $('replyLink').value = r.url;
+  copyText($('replyLink'), tx('replyCopied'));
+};
+$('replyCopy').onclick = () => copyText($('replyLink'), tx('linkCopied'));
+$('takeBtn').onclick = () => {
+  document.body.classList.remove('reply'); $('friendBox').hidden = true; sharedStock = null;
+  history.replaceState(null, '', source.type === 'repo' ? baseURL() + '?m=' + encodeURIComponent(source.path) : baseURL());
+  renderSlots(); renderList(); banner = null; toast(tx('tookOver'));
+};
+
+// Mes modèles : fichiers du dossier modeles/ du dépôt GitHub
+async function loadRepoModel(path, opts) {
+  const res = await fetch(path, { cache: 'no-cache' });
+  if (!res.ok) throw uerr(tx('notFound', path));
+  const buf = await res.arrayBuffer();
+  const ok = await loadBuffers([{ name: path.split('/').pop(), buf }], opts);
+  if (ok) source = { type: 'repo', path };
+  return ok;
+}
+if (GH) {
+  $('reposBtn').hidden = false; $('reposBtn').classList.add('owner-only');
+  $('reposBtn').onclick = async () => {
+    $('reposBox').hidden = false; $('reposList').innerHTML = `<p class="hint">${tx('loading')}</p>`;
+    try {
+      const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/modeles`);
+      if (r.status === 404) throw new Error('none');
+      const list = (await r.json()).filter(x => /\.(stl|3mf)$/i.test(x.name));
+      if (!list.length) throw new Error('none');
+      $('reposList').innerHTML = list.map(x => `<button type="button" data-p="${esc(x.path)}">${esc(x.name)} <span style="color:var(--muted)">${(x.size / 1024 / 1024).toLocaleString(tx('locale'), { maximumFractionDigits: 1 })} ${tx('mb')}</span></button>`).join('');
+      $('reposList').querySelectorAll('button').forEach(b => b.onclick = async () => { try { if (await loadRepoModel(b.dataset.p)) { setModelParam(b.dataset.p); $('reposBox').hidden = true; } } catch (e) { toast(e.message); } });
+    } catch (e) {
+      $('reposList').innerHTML = `<p class="hint">${tx('noRepoModels')}</p>`;
+    }
+  };
+  $('reposClose').onclick = () => { $('reposBox').hidden = true; };
+}
+
+async function boot() {
+  const h = location.hash.match(/^#([ar])=(.+)$/);
+  const q = new URLSearchParams(location.search).get('m');
+  let st = null;
+  if (h) { try { st = unpackObj(h[2]); } catch { toast(tx('badLink')); } }
+  const m = st ? st.m : q;
+  try {
+    if (st && st.e) { const files = st.e.map(z => ({ name: z.n, buf: inflateSync(b64u.dec(z.d)).buffer })); await loadBuffers(files, { quiet: true }); source = { type: 'inline', files }; }
+    else if (m && m !== ':sample') await loadRepoModel(m, { quiet: !!st });
+    else sampleModel();
+  } catch (e) { toast(e.userMsg ? e.message : tx('modelMissing')); sampleModel(); }
+  if (!model) sampleModel();
+  if (st) {
+    if (st.f) $('fileName').textContent = st.f;
+    banner = st;
+    if (st.k === 'a') {
+      sharedStock = new Set((st.s || []).filter(id => BY_ID[id]));
+      document.body.classList.add('friend'); fStock = true;
+    } else { document.body.classList.add('reply'); $('replyForm').hidden = false; }
+    $('friendBox').hidden = false; renderBanner();
+    applyState(st);
+  }
+  renderSlots(); renderList();
+}
+
+let banner = null;
+function renderBanner() {
+  if (!banner) return;
+  if (banner.k === 'a') { $('friendTitle').textContent = tx('friendTitle'); $('friendLead').textContent = (banner.t ? tx('quote', banner.t) : '') + tx('friendLead', sharedStock.size); }
+  else { $('friendTitle').textContent = tx('replyTitle', banner.w); $('friendLead').textContent = tx('replyLead'); }
+}
+const STATIC = [
+  ['#reposBtn', 'myModels'], ['#sampleBtn', 'sample'], ['#shareBtn', 'share'], ['#openTxt', 'open'], ['#drop', 'drop'], ['#loading', 'loading'],
+  ['#tLayers', 'layers'], ['#tAO', 'softShadows'], ['#tRotate', 'rotate'], ['#tFit', 'fit'],
+  ['#bgSel option[value=auto]', 'bgAuto'], ['#bgSel option[value=light]', 'bgLight'], ['#bgSel option[value=dark]', 'bgDark'], ['#bgSel option[value=bed]', 'bgBed'],
+  ['#sendBtn', 'sendChoice'], ['#takeBtn', 'takeOver'], ['#replyHint', 'replyHint'], ['#replyCopy', 'copyLink'], ['#shareCopy', 'copyLink'],
+  ['#shareTitle', 'shareTitle'], ['#shareMake', 'makeLink'], ['#shareClose', 'close'], ['#reposClose', 'close'], ['#ioClose', 'close'],
+  ['#reposTitle', 'myModels'], ['#reposSub', 'reposSub'], ['#colorsTitle', 'modelColors'], ['#slotHint', 'slotHint'],
+  ['.seg button[data-t=all]', 'all'], ['#onlyStockTxt', 'onlyStock'], ['#ioLabel', 'stockLabel'], ['#ioImport', 'importList'], ['#ioBtn', 'saveImport'], ['.foot .src', 'source'],
+];
+const STATIC_ATTR = [
+  ['#cv', 'aria-label', 'view3d'], ['.chipbar', 'aria-label', 'renderOpts'], ['#layerH', 'aria-label', 'layerH'], ['#bgSel', 'aria-label', 'decor'],
+  ['#who', 'placeholder', 'yourName'], ['#who', 'aria-label', 'yourName'], ['#shareNote', 'placeholder', 'shareNote'], ['#shareNote', 'aria-label', 'shareNote'],
+  ['#q', 'placeholder', 'search'], ['#q', 'aria-label', 'search'], ['.seg', 'aria-label', 'material'], ['#langSel', 'aria-label', 'langLabel'],
+];
+function applyLang() {
+  document.documentElement.lang = lang; $('langSel').value = lang;
+  STATIC.forEach(([s, k]) => { const el = document.querySelector(s); if (el) el.textContent = tx(k); });
+  STATIC_ATTR.forEach(([s, a, k]) => { const el = document.querySelector(s); if (el) el.setAttribute(a, tx(k)); });
+  $('layerH').querySelectorAll('option').forEach(o => o.textContent = (+o.value).toLocaleString(tx('locale'), { minimumFractionDigits: 2 }) + ' mm');
+  if (source.type === 'sample' && !banner) $('fileName').textContent = tx('samplePiece');
+  if (model) { const b = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()); $('dims').textContent = `${fmt(b.x)} × ${fmt(b.z)} × ${fmt(b.y)} mm · ${countTris().toLocaleString(tx('locale'))} triangles`; }
+  renderBanner(); renderSlots(); renderParts(); renderList();
+  if (!$('shareBox').hidden) $('shareBtn').click();
+}
+$('langSel').onchange = (e) => { lang = e.target.value; try { localStorage.setItem(LANG_KEY, lang); } catch {} applyLang(); };
+applyLang();
+boot();
+window.__cam = (c) => { camera.position.set(...c.p); controls.target.set(...c.t); controls.update(); dirty = true; };
+window.__app = { loadFiles, parse3MF, slots: () => slots, parts: () => parts, setSlotFil };
+</script>
+
+</body>
+</html>

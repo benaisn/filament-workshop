@@ -1,0 +1,17 @@
+# Atelier Filament
+
+Visionneuse 3D de fichiers STL et 3MF, avec choix des couleurs dans le catalogue Prusament PLA et PETG.
+
+**Site :** https://benaisn.github.io/filament-workshop/
+
+## Fonctions
+
+- Ouverture de fichiers STL et 3MF, y compris les projets PrusaSlicer et Orca/Bambu : pièces, extrudeurs et peinture multicolore.
+- Rendu réaliste : lignes de couche, effet soie, paillettes, irisé, translucide, ombres douces.
+- 102 teintes Prusament PLA et PETG, avec les couleurs mesurées de la base [OpenPrintTag](https://github.com/OpenPrintTag/openprinttag-database) (`data/prusament.json`), et ton stock personnel, enregistré dans le navigateur.
+- **Partage avec un ami** : *Partager* crée un lien. Ton ami y choisit ses couleurs parmi ton stock et te renvoie un lien de réponse.
+- Interface en français, en anglais et en allemand.
+
+## Partager un gros modèle
+
+Les petits fichiers tiennent directement dans le lien. Les plus gros doivent être déposés dans le dossier [`modeles/`](modeles/). Ouvre-les ensuite avec **Mes modèles**, puis clique sur **Partager**.
