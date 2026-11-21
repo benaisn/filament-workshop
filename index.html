@@ -1186,6 +1186,7 @@ function applyLang() {
 $('langSel').onchange = (e) => { lang = e.target.value; try { localStorage.setItem(LANG_KEY, lang); } catch {} applyLang(); };
 applyLang();
 boot();
+window.addEventListener('hashchange', () => { if (/^#[ar]=/.test(location.hash)) location.reload(); });
 window.__cam = (c) => { camera.position.set(...c.p); controls.target.set(...c.t); controls.update(); dirty = true; };
 window.__app = { loadFiles, parse3MF, slots: () => slots, parts: () => parts, setSlotFil };
 </script>
