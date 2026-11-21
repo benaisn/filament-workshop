@@ -46,6 +46,13 @@ header.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px;
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn svg { width: 16px; height: 16px; }
+.arbox { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; flex-direction: column; }
+.arbox model-viewer { flex: 1; width: 100%; height: auto; align-self: stretch; min-height: 0; background: var(--bg); --poster-color: transparent; }
+.arbar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+.arbar h2 { margin: 0; font-size: 15px; flex: 1; }
+.arfoot { padding: 10px 16px 16px; display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center; }
+.arfoot .hint { margin: 0; color: var(--muted); font-size: 13px; max-width: 520px; }
+.argo { font-size: 16px; padding: 11px 20px; }
 
 .stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
 .stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
@@ -164,6 +171,7 @@ body.reply #friendForm { display: none !important; }
     <button class="btn" id="reposBtn" type="button" hidden>Mes modèles</button>
     <button class="btn owner-only" id="sampleBtn" type="button">Exemple</button>
     <button class="btn owner-only" id="shareBtn" type="button">Partager</button>
+    <button class="btn" id="arBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 7.5v9L12 21l8-4.5v-9L12 3z"/><path d="M4 7.5 12 12l8-4.5M12 12v9"/></svg><span id="arTxt">AR</span></button>
     <button class="btn primary owner-only" id="openBtn" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3m0 0-4 4m4-4 4 4"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
       <span><span id="openTxt">Ouvrir</span><span class="long"> STL / 3MF</span></span>
@@ -171,6 +179,12 @@ body.reply #friendForm { display: none !important; }
     <select id="langSel" class="langsel" aria-label="Langue"><option value="fr">FR</option><option value="en">EN</option><option value="de">DE</option></select>
     <input type="file" id="fileInput" accept=".stl,.3mf" multiple hidden>
   </header>
+
+  <div class="arbox" id="arBox" hidden>
+    <div class="arbar"><h2 id="arTitle">Voir chez toi en réalité augmentée</h2><button class="btn" id="arClose" type="button">Fermer</button></div>
+    <div id="arSlot" style="flex:1;min-height:0;display:flex"></div>
+    <div class="arfoot"><button class="btn primary argo" id="arGo" type="button" hidden>Placer la pièce chez moi</button><p class="hint" id="arHint"></p></div>
+  </div>
 
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="Vue 3D du modèle"></canvas>
@@ -305,6 +319,7 @@ const I18N = {
     formats: 'Formats acceptés : .stl et .3mf', projColors: 'Couleurs du projet reprises avec le filament le plus proche de ton stock', toChoose: (n) => `${n} couleur${n > 1 ? 's' : ''} à choisir`,
     errNoMesh: (f) => `« ${f} » ne contient aucun maillage lisible.`, errRead: 'Lecture impossible : le fichier semble endommagé ou dans un format non pris en charge.',
     selectCopy: 'Sélectionne le lien puis copie-le',
+    arBtn: 'AR', arTitle: 'Voir chez toi en réalité augmentée', arGo: 'Placer la pièce chez moi', arLoading: 'Préparation du modèle 3D…', arHint: 'Pose la pièce sur une table ou au sol : elle apparaît à sa taille réelle. Déplace-la avec un doigt, tourne-la avec deux.', arNo: 'La réalité augmentée s’ouvre sur un téléphone ou une tablette (Android avec ARCore, iPhone ou iPad). Ouvre cette même page sur ton téléphone, puis touche « AR ».', arFail: 'Impossible de préparer la vue AR. Vérifie ta connexion et réessaie.', arNote: 'Les paillettes et l’effet marbré ne sont pas visibles en AR.',
     notHosted: 'Le partage fonctionne une fois l’appli mise en ligne (GitHub Pages ou Netlify). Ici, dans claude.ai, tes amis ne pourraient pas ouvrir le lien.',
     shareInfo: (n) => `Ton ami verra ce modèle avec tes couleurs actuelles et pourra choisir parmi tes ${n} filaments en stock.`,
     tooBig: (k) => `Ce fichier est trop gros pour tenir dans un lien (${k} Ko compressé). Dépose-le dans le dossier « modeles » de ton dépôt GitHub, puis ouvre-le avec « Mes modèles » et recommence.`,
@@ -313,11 +328,12 @@ const I18N = {
     replyCopied: 'Lien de ton choix copié : colle-le dans ton message', tookOver: 'Modèle repris dans ton atelier, avec les couleurs choisies',
     notFound: (p) => `« ${p} » est introuvable sur le site.`, mb: 'Mo',
     noRepoModels: 'Aucun modèle pour l’instant. Sur github.com, ouvre ton dépôt, crée un dossier « modeles » et glisses-y tes fichiers STL ou 3MF. Ils apparaîtront ici une minute plus tard.',
+    shareSaving: 'Enregistrement du partage dans le dépôt…', shareMissing: 'Ce partage est introuvable. Il vient peut-être d’être créé : réessaie dans une minute.',
     badLink: 'Ce lien est incomplet. Demande à la personne de te le renvoyer en entier.', modelMissing: 'Modèle introuvable',
     friendTitle: 'À toi de choisir les couleurs',
     friendLead: (n) => `Pour chaque couleur de la pièce, clique dessus puis choisis un filament dans la liste (${n} disponibles). Tourne la pièce avec la souris ou le doigt pour la voir sous tous les angles.`,
     replyTitle: (w) => `Choix de ${w || 'ton ami'}`, replyLead: 'Voici les couleurs choisies. Les filaments que tu n’as plus en stock sont signalés.',
-    ghNeed: 'Pour envoyer automatiquement tes fichiers dans le dossier « modeles » du dépôt, connecte GitHub une seule fois : crée un jeton (choisis « Only select repositories » puis filament-workshop, et autorise « Contents : Read and write »), puis colle-le ici. Il reste enregistré dans ce navigateur.',
+    ghNeed: 'Pour des liens courts et l’envoi automatique de tes fichiers dans le dossier « modeles » du dépôt, connecte GitHub une seule fois : crée un jeton (choisis « Only select repositories » puis filament-workshop, et autorise « Contents : Read and write »), puis colle-le ici. Il reste enregistré dans ce navigateur.',
     ghCreate: 'Créer le jeton sur GitHub', ghTokenPh: 'Colle ton jeton GitHub (github_pat_…)', ghSave: 'Enregistrer', ghForget: 'Déconnecter GitHub',
     ghSaved: 'GitHub connecté : tes fichiers seront envoyés automatiquement', ghBad: 'Ce jeton ne permet pas d’écrire dans le dépôt. Vérifie le dépôt choisi et la permission « Contents ».',
     uploading: (f) => `Envoi de « ${f} » dans modeles/…`, uploaded: 'Fichier envoyé dans modeles/ : le lien est prêt', uploadFail: (m) => `L’envoi a échoué (${m}). Réessaie, ou dépose le fichier à la main dans modeles/.`,
@@ -347,6 +363,7 @@ const I18N = {
     formats: 'Accepted formats: .stl and .3mf', projColors: 'Project colours matched to the closest filament in your stock', toChoose: (n) => `${n} colour${n > 1 ? 's' : ''} to choose`,
     errNoMesh: (f) => `“${f}” contains no readable mesh.`, errRead: 'Can’t read this file: it looks damaged or uses an unsupported format.',
     selectCopy: 'Select the link and copy it',
+    arBtn: 'AR', arTitle: 'See it in your room with augmented reality', arGo: 'Place it in my room', arLoading: 'Preparing the 3D model…', arHint: 'Put the part on a table or the floor: it shows at its real size. Move it with one finger, rotate it with two.', arNo: 'Augmented reality opens on a phone or tablet (Android with ARCore, iPhone or iPad). Open this same page on your phone, then tap “AR”.', arFail: 'Could not prepare the AR view. Check your connection and try again.', arNote: 'Glitter and marble effects are not shown in AR.',
     notHosted: 'Sharing works once the app is online (GitHub Pages or Netlify). Here in claude.ai, your friends couldn’t open the link.',
     shareInfo: (n) => `Your friend will see this model with your current colours and can choose from your ${n} filaments in stock.`,
     tooBig: (k) => `This file is too big to fit in a link (${k} KB compressed). Put it in the “modeles” folder of your GitHub repository, open it with “My models”, then try again.`,
@@ -355,11 +372,12 @@ const I18N = {
     replyCopied: 'Link to your choice copied: paste it into your message', tookOver: 'Model opened in your workshop with the chosen colours',
     notFound: (p) => `“${p}” wasn’t found on the site.`, mb: 'MB',
     noRepoModels: 'No models yet. On github.com, open your repository, create a “modeles” folder and drag your STL or 3MF files into it. They’ll show up here a minute later.',
+    shareSaving: 'Saving the share to the repository…', shareMissing: 'This share could not be found. It may have just been created: try again in a minute.',
     badLink: 'This link is incomplete. Ask the sender to send it again in full.', modelMissing: 'Model not found',
     friendTitle: 'Your turn to pick the colours',
     friendLead: (n) => `For each colour of the part, click it, then pick a filament from the list (${n} available). Turn the part with your mouse or finger to see it from every angle.`,
     replyTitle: (w) => `${w || 'Your friend'}’s choice`, replyLead: 'Here are the chosen colours. Filaments you no longer have in stock are flagged.',
-    ghNeed: 'To send your files to the “modeles” folder of the repository automatically, connect GitHub once: create a token (pick “Only select repositories”, then filament-workshop, and allow “Contents: Read and write”), then paste it here. It stays saved in this browser.',
+    ghNeed: 'For short links and automatic upload of your files to the “modeles” folder of the repository, connect GitHub once: create a token (pick “Only select repositories”, then filament-workshop, and allow “Contents: Read and write”), then paste it here. It stays saved in this browser.',
     ghCreate: 'Create the token on GitHub', ghTokenPh: 'Paste your GitHub token (github_pat_…)', ghSave: 'Save', ghForget: 'Disconnect GitHub',
     ghSaved: 'GitHub connected: your files will be sent automatically', ghBad: 'This token can’t write to the repository. Check the selected repository and the “Contents” permission.',
     uploading: (f) => `Sending “${f}” to modeles/…`, uploaded: 'File sent to modeles/: the link is ready', uploadFail: (m) => `Upload failed (${m}). Try again, or put the file in modeles/ by hand.`,
@@ -389,6 +407,7 @@ const I18N = {
     formats: 'Unterstützte Formate: .stl und .3mf', projColors: 'Projektfarben dem ähnlichsten Filament aus deinem Vorrat zugeordnet', toChoose: (n) => `${n} Farbe${n > 1 ? 'n' : ''} auszuwählen`,
     errNoMesh: (f) => `„${f}“ enthält kein lesbares Netz.`, errRead: 'Datei nicht lesbar: Sie scheint beschädigt zu sein oder ein nicht unterstütztes Format zu haben.',
     selectCopy: 'Markiere den Link und kopiere ihn',
+    arBtn: 'AR', arTitle: 'Mit Augmented Reality bei dir ansehen', arGo: 'Teil bei mir platzieren', arLoading: '3D-Modell wird vorbereitet…', arHint: 'Stelle das Teil auf einen Tisch oder den Boden: Es erscheint in Originalgröße. Mit einem Finger verschieben, mit zwei drehen.', arNo: 'Augmented Reality öffnet sich auf einem Smartphone oder Tablet (Android mit ARCore, iPhone oder iPad). Öffne diese Seite auf deinem Smartphone und tippe auf „AR“.', arFail: 'Die AR-Ansicht konnte nicht vorbereitet werden. Prüfe deine Verbindung und versuche es erneut.', arNote: 'Glitzer- und Marmoreffekte sind in AR nicht sichtbar.',
     notHosted: 'Teilen funktioniert, sobald die App online ist (GitHub Pages oder Netlify). Hier in claude.ai könnten deine Freunde den Link nicht öffnen.',
     shareInfo: (n) => `Deine Freunde sehen dieses Modell mit deinen aktuellen Farben und können aus deinen ${n} vorrätigen Filamenten wählen.`,
     tooBig: (k) => `Diese Datei ist zu groß für einen Link (${k} KB komprimiert). Lege sie im Ordner „modeles“ deines GitHub-Repositorys ab, öffne sie über „Meine Modelle“ und versuche es erneut.`,
@@ -397,11 +416,12 @@ const I18N = {
     replyCopied: 'Link zu deiner Auswahl kopiert: Füge ihn in deine Nachricht ein', tookOver: 'Modell mit den gewählten Farben in deine Werkstatt übernommen',
     notFound: (p) => `„${p}“ wurde auf der Website nicht gefunden.`, mb: 'MB',
     noRepoModels: 'Noch keine Modelle. Öffne dein Repository auf github.com, lege einen Ordner „modeles“ an und ziehe deine STL- oder 3MF-Dateien hinein. Sie erscheinen hier etwa eine Minute später.',
+    shareSaving: 'Freigabe wird im Repository gespeichert…', shareMissing: 'Diese Freigabe wurde nicht gefunden. Vielleicht wurde sie gerade erst erstellt: Versuche es in einer Minute erneut.',
     badLink: 'Dieser Link ist unvollständig. Bitte die Person, ihn vollständig erneut zu senden.', modelMissing: 'Modell nicht gefunden',
     friendTitle: 'Du darfst die Farben wählen',
     friendLead: (n) => `Klicke auf jede Farbe des Teils und wähle dann ein Filament aus der Liste (${n} verfügbar). Drehe das Teil mit der Maus oder dem Finger, um es von allen Seiten zu sehen.`,
     replyTitle: (w) => `Auswahl von ${w || 'deinem Freund'}`, replyLead: 'Hier sind die gewählten Farben. Filamente, die du nicht mehr vorrätig hast, sind markiert.',
-    ghNeed: 'Um deine Dateien automatisch in den Ordner „modeles“ des Repositorys zu senden, verbinde GitHub einmalig: Erstelle ein Token (wähle „Only select repositories“, dann filament-workshop, und erlaube „Contents: Read and write“) und füge es hier ein. Es bleibt in diesem Browser gespeichert.',
+    ghNeed: 'Für kurze Links und das automatische Hochladen deiner Dateien in den Ordner „modeles“ des Repositorys, verbinde GitHub einmalig: Erstelle ein Token (wähle „Only select repositories“, dann filament-workshop, und erlaube „Contents: Read and write“) und füge es hier ein. Es bleibt in diesem Browser gespeichert.',
     ghCreate: 'Token auf GitHub erstellen', ghTokenPh: 'GitHub-Token einfügen (github_pat_…)', ghSave: 'Speichern', ghForget: 'GitHub trennen',
     ghSaved: 'GitHub verbunden: Deine Dateien werden automatisch gesendet', ghBad: 'Mit diesem Token kann nicht in das Repository geschrieben werden. Prüfe das gewählte Repository und die Berechtigung „Contents“.',
     uploading: (f) => `„${f}“ wird nach modeles/ gesendet…`, uploaded: 'Datei nach modeles/ gesendet: Der Link ist bereit', uploadFail: (m) => `Hochladen fehlgeschlagen (${m}). Versuche es erneut oder lege die Datei von Hand in modeles/ ab.`,
@@ -1106,6 +1126,42 @@ async function uploadSource() {
   }
   source = { type: 'repo', path: urls.length === 1 ? urls[0] : urls };
 }
+// Liens courts : la configuration du partage est un petit JSON dans partages/<id>.json
+let shortCfg = null; // config d'un lien ?p= ouvert par l'ami
+async function saveShortShare(o) {
+  $('shareInfo').textContent = tx('shareSaving');
+  const id = Array.from(crypto.getRandomValues(new Uint8Array(6)), b => '0123456789abcdefghijklmnopqrstuvwxyz'[b % 36]).join('');
+  const json = JSON.stringify(o);
+  await ghApi(`/contents/partages/${id}.json`, { method: 'PUT', body: JSON.stringify({ message: `Partage ${id} (${o.f || 'modèle'})`, content: b64u.std(strToU8(json)) }) });
+  return baseURL() + '?p=' + id;
+}
+async function loadShortShare(id) {
+  if (!GH || !/^[0-9a-z]{4,12}$/.test(id)) throw uerr(tx('badLink'));
+  const tries = [
+    [`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/partages/${id}.json`, { headers: { Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' }],
+    [`https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/HEAD/partages/${id}.json`, { cache: 'no-store' }],
+    [`partages/${id}.json`, { cache: 'no-cache' }],
+  ];
+  for (const [u, opt] of tries) { try { const r = await fetch(u, opt); if (r.ok) return await r.json(); } catch {} }
+  throw uerr(tx('shareMissing'));
+}
+// Réponse compacte : slot-filament où le filament est l'index (base 36) dans la liste partagée, sinon ~id
+function packReply(cfg) {
+  const s = cfg.s || [];
+  const enc = (id) => { const i = s.indexOf(id); return i >= 0 ? i.toString(36) : '~' + id; };
+  const c = slots.map(x => x.n.toString(36) + '-' + enc(x.fil)).join('.');
+  const st = currentState();
+  const ps = Array.isArray(cfg.ps) && JSON.stringify(cfg.ps) === JSON.stringify(st.ps) ? '' : st.ps.map(n => n.toString(36)).join('.');
+  return { c, ps };
+}
+function unpackReply(cfg, c, ps) {
+  const s = cfg.s || [];
+  const out = { ...cfg, k: 'r' };
+  out.c = c.split('.').filter(Boolean).map(pair => { const [n, f] = pair.split('-'); return [parseInt(n, 36), f && f[0] === '~' ? f.slice(1) : s[parseInt(f, 36)]]; });
+  if (ps) out.ps = ps.split('.').map(x => parseInt(x, 36) || 0);
+  return out;
+}
+
 $('ghSave').onclick = async () => {
   const v = $('ghToken').value.trim(); if (!v) return;
   try { localStorage.setItem(GH_KEY, v); } catch {}
@@ -1120,7 +1176,7 @@ $('shareBtn').onclick = () => {
   $('shareBox').hidden = false; $('shareOut').hidden = true;
   const nS = CAT.filter(f => inStock(f.id)).length; const local = source.type === 'local' || source.type === 'inline';
   $('shareInfo').textContent = !HOSTED ? tx('notHosted') : (local && GH && ghToken() ? tx('shareInfoUp', nS) : tx('shareInfo', nS));
-  $('ghBox').hidden = !(HOSTED && GH && local && !ghToken()); $('ghInfo').textContent = tx('ghNeed');
+  $('ghBox').hidden = !(HOSTED && GH && !ghToken()); $('ghInfo').textContent = tx('ghNeed');
   $('ghForget').hidden = !(GH && ghToken());
   $('shareMake').disabled = !HOSTED;
   $('shareBox').scrollIntoView({ block: 'nearest' });
@@ -1132,7 +1188,15 @@ $('shareMake').onclick = async () => {
     try { await uploadSource(); } catch (e) { $('shareMake').disabled = false; $('shareInfo').textContent = tx('uploadFail', e.message || 'erreur'); return; }
     $('shareMake').disabled = false; toast(tx('uploaded'));
   }
-  const r = await makeShareLink('a', { s: CAT.filter(f => inStock(f.id)).map(f => f.id), t: $('shareNote').value.trim() });
+  let r = null;
+  if (GH && ghToken() && source.type !== 'local' && source.type !== 'inline') {
+    const o = { v: 1, f: $('fileName').textContent, ...currentState(), s: CAT.filter(f => inStock(f.id)).map(f => f.id), t: $('shareNote').value.trim(), m: source.type === 'repo' ? source.path : ':sample' };
+    $('shareMake').disabled = true;
+    try { r = { url: await saveShortShare(o) }; } catch (e) { r = null; }
+    $('shareMake').disabled = false;
+    $('shareInfo').textContent = tx('shareInfo', o.s.length);
+  }
+  if (!r) r = await makeShareLink('a', { s: CAT.filter(f => inStock(f.id)).map(f => f.id), t: $('shareNote').value.trim() });
   if (r.error) {
     $('shareOut').hidden = true;
     $('shareInfo').textContent = tx('tooBig', Math.round(r.error / 1024));
@@ -1148,7 +1212,12 @@ $('shareCopy').onclick = () => copyText($('shareLink'), tx('linkCopied'));
 $('sendBtn').onclick = async () => {
   const who = $('who').value.trim();
   if (!who) { $('who').focus(); toast(tx('needName')); return; }
-  const r = await makeShareLink('r', { w: who });
+  let r;
+  if (shortCfg) {
+    const { c, ps } = packReply(shortCfg);
+    const u = new URL(baseURL()); u.searchParams.set('p', shortCfg.id); u.searchParams.set('w', who); u.searchParams.set('c', c); if (ps) u.searchParams.set('ps', ps);
+    r = { url: u.toString() };
+  } else r = await makeShareLink('r', { w: who });
   if (r.error) { toast(tx('replyTooBig')); return; }
   $('replyOut').hidden = false; $('replyLink').value = r.url;
   copyText($('replyLink'), tx('replyCopied'));
@@ -1190,11 +1259,71 @@ if (GH) {
   $('reposClose').onclick = () => { $('reposBox').hidden = true; };
 }
 
+/* ---------- Réalité augmentée : export GLB + model-viewer (WebXR sur Android, Quick Look sur iOS) ---------- */
+const MV_URL = 'https://cdn.jsdelivr.net/npm/@google/model-viewer@4.4.0/dist/model-viewer.min.js';
+let arUrl = null;
+function arScene() {
+  const root = new THREE.Group(); root.scale.setScalar(0.001); // mm -> m : taille réelle
+  const mats = new Map(slots.map(s => {
+    const src = s.mat; const tr = src.transmission || 0;
+    const m = new THREE.MeshPhysicalMaterial({
+      color: src.color.clone(), roughness: src.roughness, metalness: src.metalness, clearcoat: src.clearcoat, clearcoatRoughness: src.clearcoatRoughness,
+      sheen: src.sheen, sheenColor: src.sheenColor.clone(), sheenRoughness: src.sheenRoughness, iridescence: src.iridescence, ior: src.ior,
+      transmission: tr, thickness: src.thickness, attenuationColor: src.attenuationColor.clone(), attenuationDistance: src.attenuationDistance,
+      emissive: src.emissive.clone(), emissiveIntensity: src.emissiveIntensity,
+      transparent: tr > 0, opacity: tr > 0 ? (tr > 0.8 ? 0.55 : 0.8) : 1, side: tr > 0 ? THREE.FrontSide : THREE.DoubleSide,
+    });
+    return [s.n, m];
+  }));
+  model.updateMatrixWorld(true);
+  model.traverse(o => { if (!o.isMesh) return; const m = new THREE.Mesh(o.geometry, mats.get(o.userData.slot)); m.applyMatrix4(o.matrixWorld); m.name = 'couleur-' + o.userData.slot; root.add(m); });
+  return root;
+}
+async function arExport() {
+  const { GLTFExporter } = await import('three/addons/exporters/GLTFExporter.js');
+  const glb = await new GLTFExporter().parseAsync(arScene(), { binary: true });
+  if (arUrl) URL.revokeObjectURL(arUrl);
+  arUrl = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
+  return arUrl;
+}
+$('arBtn').onclick = async () => {
+  if (!model) return;
+  $('arBox').hidden = false; $('arGo').hidden = true; $('arHint').textContent = tx('arLoading'); $('arSlot').innerHTML = '';
+  try {
+    const [url] = await Promise.all([arExport(), customElements.get('model-viewer') ? null : import(MV_URL)]);
+    await customElements.whenDefined('model-viewer');
+    const mv = document.createElement('model-viewer');
+    mv.setAttribute('src', url); mv.setAttribute('alt', $('fileName').textContent || 'Modèle');
+    mv.setAttribute('ar', ''); mv.setAttribute('ar-modes', 'webxr quick-look'); mv.setAttribute('ar-scale', 'fixed'); mv.setAttribute('ar-placement', 'floor');
+    mv.setAttribute('camera-controls', ''); mv.setAttribute('touch-action', 'pan-y'); mv.setAttribute('shadow-intensity', '1'); mv.setAttribute('environment-image', 'neutral'); mv.setAttribute('tone-mapping', 'neutral');
+    const slotBtn = document.createElement('button'); slotBtn.slot = 'ar-button'; slotBtn.hidden = true; mv.appendChild(slotBtn); // on utilise notre propre bouton
+    const hasFx = slots.some(s => { const f = new Set(BY_ID[s.fil].fin); return f.has('pailleté') || f.has('marbré'); });
+    const ready = () => {
+      const ok = mv.canActivateAR;
+      $('arGo').hidden = !ok;
+      $('arHint').textContent = (ok ? tx('arHint') : tx('arNo')) + (hasFx ? ' ' + tx('arNote') : '');
+    };
+    mv.addEventListener('load', () => setTimeout(ready, 50), { once: true });
+    mv.addEventListener('error', () => { $('arHint').textContent = tx('arFail'); }, { once: true });
+    $('arSlot').appendChild(mv);
+    setTimeout(() => { if (mv.loaded && $('arHint').textContent === tx('arLoading')) ready(); }, 1500);
+    $('arGo').onclick = () => mv.activateAR();
+  } catch (e) { console.error(e); $('arHint').textContent = tx('arFail'); }
+};
+$('arClose').onclick = () => { $('arBox').hidden = true; $('arSlot').innerHTML = ''; };
+
 async function boot() {
   const h = location.hash.match(/^#([ar])=(.+)$/);
   const q = new URLSearchParams(location.search).get('m');
   let st = null;
   if (h) { try { st = unpackObj(h[2]); } catch { toast(tx('badLink')); } }
+  const sp = new URLSearchParams(location.search); const pid = sp.get('p');
+  if (!st && pid) {
+    try {
+      const cfg = await loadShortShare(pid); cfg.id = pid; shortCfg = cfg;
+      st = sp.get('c') != null ? { ...unpackReply(cfg, sp.get('c'), sp.get('ps')), w: sp.get('w') || '' } : { ...cfg, k: 'a' };
+    } catch (e) { toast(e.userMsg ? e.message : tx('badLink')); }
+  }
   const m = st ? st.m : q;
   try {
     if (st && st.e) { const files = st.e.map(z => ({ name: z.n, buf: inflateSync(b64u.dec(z.d)).buffer })); await loadBuffers(files, { quiet: true }); source = { type: 'inline', files }; }
@@ -1222,7 +1351,7 @@ function renderBanner() {
   else { $('friendTitle').textContent = tx('replyTitle', banner.w); $('friendLead').textContent = tx('replyLead'); }
 }
 const STATIC = [
-  ['#reposBtn', 'myModels'], ['#sampleBtn', 'sample'], ['#shareBtn', 'share'], ['#openTxt', 'open'], ['#drop', 'drop'], ['#loading', 'loading'],
+  ['#reposBtn', 'myModels'], ['#sampleBtn', 'sample'], ['#shareBtn', 'share'], ['#arTxt', 'arBtn'], ['#arTitle', 'arTitle'], ['#arGo', 'arGo'], ['#arClose', 'close'], ['#openTxt', 'open'], ['#drop', 'drop'], ['#loading', 'loading'],
   ['#tLayers', 'layers'], ['#tAO', 'softShadows'], ['#tRotate', 'rotate'], ['#tFit', 'fit'],
   ['#bgSel option[value=auto]', 'bgAuto'], ['#bgSel option[value=light]', 'bgLight'], ['#bgSel option[value=dark]', 'bgDark'], ['#bgSel option[value=bed]', 'bgBed'],
   ['#sendBtn', 'sendChoice'], ['#takeBtn', 'takeOver'], ['#replyHint', 'replyHint'], ['#replyCopy', 'copyLink'], ['#shareCopy', 'copyLink'],
